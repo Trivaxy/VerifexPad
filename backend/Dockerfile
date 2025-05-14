@@ -22,9 +22,8 @@ ARG VERIFEX_VERSION=master
 RUN git clone https://github.com/Trivaxy/Verifex.git --branch ${VERIFEX_VERSION} --depth 1
 
 # Build the project with runtime configuration
-WORKDIR /app/Verifex
-RUN dotnet build Verifex.csproj -c Debug
-RUN dotnet publish Verifex.csproj -c Debug -o /app/publish
+RUN dotnet build /app/Verifex/Verifex.csproj -c Debug
+RUN dotnet publish /app/Verifex/Verifex.csproj -c Debug -o /app/publish
 
 WORKDIR /app
 
@@ -59,7 +58,7 @@ RUN chown -R verifexuser:verifexuser /app
 RUN ldconfig
 
 # Set environment variable to help .NET find the native library
-ENV LD_LIBRARY_PATH=/app/publish:/usr/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/app/publish:/usr/lib
 
 # Switch to non-root user for better security
 USER verifexuser
