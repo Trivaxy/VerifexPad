@@ -2,10 +2,11 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0-noble
 
 WORKDIR /app
 
-# Install dependencies required for Z3
+# Install dependencies required for Z3 and Git
 RUN apt-get update && apt-get install -y \
     wget \
     unzip \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and install Z3 4.12.2 native libraries
@@ -15,14 +16,17 @@ RUN wget https://github.com/Z3Prover/z3/releases/download/z3-4.12.2/z3-4.12.2-x6
     && cp -r z3-4.12.2-x64-glibc-2.31/include/* /usr/include/ \
     && rm -rf z3.zip z3-4.12.2-x64-glibc-2.31
 
-# Copy Verifex source and build it
-COPY ./Verifex /app/Verifex
-COPY ./Verifex.Tests /app/Verifex.Tests
-COPY ./Verifex.sln /app/Verifex.sln
+# Clone the Verifex compiler repository
+# Use ARG to make it easy to update the version or branch
+ARG VERIFEX_VERSION=master
+RUN git clone https://github.com/Trivaxy/Verifex.git --branch ${VERIFEX_VERSION} --depth 1
 
 # Build the project with runtime configuration
-RUN dotnet build Verifex.sln
-RUN dotnet publish Verifex/Verifex.csproj -c Debug -o /app/publish
+WORKDIR /app/Verifex
+RUN dotnet build Verifex.csproj -c Debug
+RUN dotnet publish Verifex.csproj -c Debug -o /app/publish
+
+WORKDIR /app
 
 # Copy the Z3 library to the publish directory to ensure it's available
 RUN cp /usr/lib/libz3.so /app/publish/

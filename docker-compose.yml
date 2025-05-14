@@ -2,8 +2,10 @@ services:
   # Verifex compiler container for secure code execution
   verifex-compiler:
     build:
-      context: ..
-      dockerfile: ./VerifexPad/backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        - VERIFEX_VERSION=${VERIFEX_VERSION:-master}
     image: verifex-compiler
     read_only: true
     cap_drop:
