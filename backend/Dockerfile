@@ -22,8 +22,8 @@ ARG VERIFEX_VERSION=master
 RUN git clone https://github.com/Trivaxy/Verifex.git --branch ${VERIFEX_VERSION} --depth 1
 
 # Build the project with runtime configuration
-RUN dotnet build /app/Verifex/Verifex.csproj -c Debug
-RUN dotnet publish /app/Verifex/Verifex.csproj -c Debug -o /app/publish
+RUN dotnet build /app/Verifex/Verifex/Verifex.csproj -c Debug
+RUN dotnet publish /app/Verifex/Verifex/Verifex.csproj -c Debug -o /app/publish
 
 WORKDIR /app
 
