@@ -1,0 +1,23 @@
+services:
+  # Verifex compiler container for secure code execution
+  verifex-compiler:
+    build:
+      context: ..
+      dockerfile: ./VerifexPad/backend/Dockerfile
+    image: verifex-compiler
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    networks:
+      - verifex-net
+    # Not exposing any ports as it's only used internally for code execution
+    volumes:
+      - /tmp:/tmp
+    tmpfs:
+      - /tmp/code:rw,exec,mode=1777
+
+networks:
+  verifex-net:
+    driver: bridge
