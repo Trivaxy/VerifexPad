@@ -2,7 +2,7 @@ const examples = [
   {
     name: "Hello World",
     code: `fn main() {
-  io.print("Hello, Verifex!");
+  print("Hello, Verifex!");
 }`
   },
   {
@@ -16,8 +16,24 @@ const examples = [
   mut age = 21;
   mut gpa: Real = 88.0;
   
-  io.print("Name: " + name);
-  io.print("Age: " + age);
+  print("Name: " + name);
+  print("Age: " + age);
+}`
+  },
+  {
+    name: "Loop Example",
+    code: `fn main() {
+    mut i = 0;
+    while (i < 10) {
+        mut r = 0;
+        mut s = "";
+        while (r < i) {
+            s = s + "*";
+            r = r + 1;
+        }
+        print(s);
+        i = i + 1;
+    }
 }`
   },
   {
@@ -38,115 +54,85 @@ fn main() {
   
   // But this is safe
   if (numFromUser == 0) {
-    io.print("Cannot divide by zero!");
+    print("Cannot divide by zero!");
   } else {
     // Within this block, numFromUser is known to be non-zero
     let result = divide(4, numFromUser);
-    io.print("Result: " + result);
+    print("Result: " + result);
   }
 }`
   },
   {
-    name: "Maybe Types",
-    code: `type IPv4Addr = String where value matches "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$";
+    name: "Bank Account Example",
+    code: `type NonNegativeReal = Real where value >= 0.0;
+type PositiveReal = Real where value > 0.0;
 
-fn connect(ip: IPv4Addr) -> Connection or ConnectionError {
-  // Implementation would go here
-  if (ip == "127.0.0.1") {
-    return Connection { status: "connected" };
-  } else {
-    return ConnectionError { message: "Failed to connect" };
-  }
-}
+struct Account {
+    balance: NonNegativeReal,
 
-fn main() {
-  let connection = connect("127.0.0.1");
-  
-  // Must handle both possible outcomes
-  check connection {
-    Connection -> io.print("Connected successfully!"),
-    ConnectionError -> io.print("Couldn't connect")
-  }
-}`
-  },
-  {
-    name: "Structs and Methods",
-    code: `struct Vehicle {
-  fuel: NonNegativeReal,
-  distance: NonNegativeReal,
-
-  // Static function acting as a constructor
-  fn! new() -> Vehicle {
-    return Vehicle { fuel: 0, distance: 0 };
-  }
-  
-  // Instance methods
-  fn refuel(amount: NonNegativeReal) {
-    fuel += amount;
-  }
-  
-  fn drive(km: NonZeroReal) {
-    let fuelUsed = km * 0.5;
-    if (fuelUsed > fuel) {
-      distance += fuel * 2;
-      fuel = 0;
+    fn! new(initial_deposit: NonNegativeReal) -> Account {
+    	return Account { balance: initial_deposit };
     }
-    else {
-      distance += km;
-      fuel -= fuelUsed;
+
+    fn deposit(amount: PositiveReal) {
+        balance = balance + amount;
     }
-  }
-}  
+
+    fn withdraw(amount: PositiveReal) -> Bool {
+        if (balance >= amount) { // try removing this if statement!
+            balance = balance - amount; // Still NonNegativeReal
+            return true;
+        }
+        return false;
+    }
+}
 
 fn main() {
-  let vehicle = Vehicle.new();
-  io.print("Initial fuel: " + vehicle.fuel);
-  
-  vehicle.refuel(10);
-  io.print("After refueling: " + vehicle.fuel);
-  
-  vehicle.drive(5);
-  io.print("Distance traveled: " + vehicle.distance);
-  io.print("Remaining fuel: " + vehicle.fuel);
+    mut acc = Account.new(100.0);
+
+    acc.deposit(50.0);
+    print("Balance: " + acc.balance);
+
+    let success = acc.withdraw(70.0);
+    print("Withdraw 70 success: " + success + ", New Balance: " + acc.balance);
+
+    let success2 = acc.withdraw(100.0);
+    print("Withdraw 100 success: " + success2 + ", New Balance: " + acc.balance);
 }`
   },
   {
-    name: "Composition Example",
-    code: `struct Animal {
-  name: String,
-  age: NonNegativeInt,
+    name: "Counter Example",
+    code: `type NonNegativeInt = Int where value >= 0;
 
-  fn greet() {
-    io.print("I'm a " + name);
-  }
-}
+struct Counter {
+    count: NonNegativeInt,
 
-struct Flier {
-  wingspan: PositiveReal,
+    fn! new() -> Counter {
+        return Counter { count: 0 };
+    }
 
-  fn fly() {
-    io.print("Flying!");
-  }
-}
+    fn increment() {
+        count = count + 1;
+    }
 
-struct Bird {
-  ..Animal,
-  ..Flier
+    fn decrement() {
+        if (count > 0) {
+            count = count - 1;
+        }
+    }
 }
 
 fn main() {
-  let bird = Bird {
-    name: "Bird",
-    age: 2,
-    wingspan: 3.5
-  };
+    mut c = Counter.new();
+    print(c.count);
 
-  bird.greet(); // I'm a bird
-  bird.fly();   // Flying!
-  
-  io.print("Wingspan: " + bird.wingspan);
+    c.increment();
+    print(c.count);
+    
+    c.decrement();
+    print(c.count);
 }`
-  }
+  },
 ];
 
 export default examples;
