@@ -1,13 +1,14 @@
 import React from 'react';
 import styled from 'styled-components';
+import { useTheme } from '../contexts/ThemeContext';
 
 const OutputContainer = styled.div`
   height: 100%;
   width: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #1e1e1e;
-  color: #d4d4d4;
+  background-color: ${props => props.theme.colors.background};
+  color: ${props => props.theme.colors.text};
   font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
   font-size: 17px; /* ~20% larger than default */
   overflow: hidden;
@@ -15,10 +16,10 @@ const OutputContainer = styled.div`
 
 const OutputHeader = styled.div`
   padding: 8px 12px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid ${props => props.theme.colors.border};
   font-weight: bold;
   font-size: 17px; /* ~20% larger than default */
-  background-color: #252526;
+  background-color: ${props => props.theme.colors.surface};
 `;
 
 const OutputContent = styled.pre`
@@ -32,29 +33,30 @@ const OutputContent = styled.pre`
 `;
 
 const ErrorText = styled.span`
-  color: #f48771;
+  color: ${props => props.theme.colors.error};
   font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
 `;
 
 const SuccessText = styled.span`
-  color: #89d185;
+  color: ${props => props.theme.colors.success};
   font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
 `;
 
 const OutputPanel = ({ result }) => {
+  const { theme } = useTheme();
   const { success, output, error } = result;
 
   return (
-    <OutputContainer>
-      <OutputHeader>
+    <OutputContainer theme={theme}>
+      <OutputHeader theme={theme}>
         {success !== undefined && (
           success ? 
-            <SuccessText>Compilation Successful</SuccessText> : 
-            <ErrorText>Compilation Failed</ErrorText>
+            <SuccessText theme={theme}>Compilation Successful</SuccessText> : 
+            <ErrorText theme={theme}>Compilation Failed</ErrorText>
         )}
       </OutputHeader>
       <OutputContent>
-        {error && <ErrorText>{error}</ErrorText>}
+        {error && <ErrorText theme={theme}>{error}</ErrorText>}
         {output && output}
         {!error && !output && "Run your code to see output here."}
       </OutputContent>

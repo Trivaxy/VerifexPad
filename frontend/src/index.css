@@ -17,11 +17,4 @@ code {
   box-sizing: border-box;
 }
 
-/* Split pane styling */
-.split-pane-divider {
-  background-color: #333 !important;
-}
-
-.split-pane-divider:hover {
-  background-color: #555 !important;
-}
+/* Split pane styling is now managed in ThemeContext */

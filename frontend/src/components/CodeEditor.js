@@ -1,6 +1,7 @@
 import React from 'react';
 import Editor from '@monaco-editor/react';
 import styled from 'styled-components';
+import { useTheme } from '../contexts/ThemeContext';
 
 const EditorContainer = styled.div`
   height: 100%;
@@ -9,6 +10,8 @@ const EditorContainer = styled.div`
 `;
 
 const CodeEditor = ({ value, onChange }) => {
+  const { theme } = useTheme();
+  
   const handleEditorChange = (value) => {
     onChange(value);
   };
@@ -18,7 +21,7 @@ const CodeEditor = ({ value, onChange }) => {
       <Editor
         height="100%"
         defaultLanguage="rust" // Using Rust for syntax highlighting as it's close to Verifex
-        theme="vs-dark"
+        theme={theme.editorTheme}
         value={value}
         onChange={handleEditorChange}
         options={{
