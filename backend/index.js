@@ -20,6 +20,6 @@ app.get('/', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`VerifexPad backend server running on port ${PORT}`);
 });
