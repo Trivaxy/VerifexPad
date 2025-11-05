@@ -1,10 +1,12 @@
 # Welcome to Verifex
 
-Verifex is a programming language that makes your compiler work for you, preventing bugs before they happen and giving you confidence in your code. This guide will walk you through the key features of Verifex with examples you can try in VerifexPad.
+Verifex is a programming language and research project designed to give you confidence in your code. This is part of a graduation project, and as such, Verifex at the moment is only an MVP of a language that can be taken much farther.
+
+If you're interested in trying it out, head over to https://try.verifex.xyz/
 
 ## Variables and Types
 
-In Verifex, variables are immutable (unchangeable) by default, making your code safer and easier to understand.
+In Verifex, variables are immutable (unchangeable) by default. Types are optional and are inferred.
 
 ```rust
 // Immutable variables with 'let'
@@ -16,13 +18,14 @@ mut counter = 0;
 mut balance: Real = 100.50;
 ```
 
-### Try it yourself:
-- Create immutable and mutable variables
-- Try changing an immutable variable - the compiler will stop you!
+There are a few primitive types: `Int`, `Real`, `Bool`, `String`.
+You can expect the same binary operators `+, -, &&, etc` and so on to be present and in the precedence you expect.
+
+`Int` and `Real` do not automatically convert to one another. Use `as_real(x)` and `as_int(x)` if needed.
 
 ## Functions
 
-Functions in Verifex are simple to define, with clear parameter types and return types:
+They're simple to define, with clear parameter types and return types:
 
 ```rust
 fn add(a: Int, b: Int) -> Int {
@@ -30,55 +33,63 @@ fn add(a: Int, b: Int) -> Int {
 }
 
 fn greet(name: String) {
-    io.print("Hello, " + name + "!");
+    print("Hello, " + name + "!"); // Implicit string conversion
+}
+
+fn main() {
+    greet("World");
 }
 ```
 
-### Try it yourself:
-- Create a function that multiplies two numbers
-- Call it with different values
+`main()` is the entrypoint of any Verifex program. Parameters are always immutable.
+`print` is a built-in function that accepts any value and sends it to stdout.
 
-## Making Your Code Safer: Refined Types
+## Refined Types
 
-One of Verifex's most powerful features is **refined types** - these let you specify constraints on values at compile time. Let's see a classic example:
+One of Verifex's most powerful features is **refined types** - these let you specify constraints on values at compile time.
 
 ```rust
 // This function has a problem - what if b is zero?
-fn divide(a: Real, b: Real) -> Real {
-    return a / b;  // The compiler will warn about this!
+fn divide_bad(a: Real, b: Real) -> Real {
+    return a / b; // The compiler will warn about this!
+}
+
+type NonZeroReal = Real where value != 0; // value is a special placeholder of type 'Real'
+
+fn divide_ok(a: Real, b: NonZeroReal) -> Real {
+    return a / b;
+}
+
+fn main() {
+    let x = 0;
+    divide_bad(10, x);
+    divide_ok(10, x); // The compiler will throw an error here
+
+    if (x != 0) {
+        divide_ok(10, x); // no issue here
+    }
 }
 ```
 
-Here's how to fix it with refined types:
+The condition in a refined type must be guaranteed to be met at all points in a program where the refined type is used.
 
-```rust
-// Create a type that can never be zero
-type NonZeroReal = Real where value != 0.0;
+Experiment with the condition in the `if` to see what works and what doesn't. The compiler's analysis is more sophisticated than just checking if the condition in it exactly matches what's in `NonZeroReal`.
 
-// Now our function is safe!
-fn divide(a: Real, b: NonZeroReal) -> Real {
-    return a / b;  // This is now safe
-}
-```
+The condition has access to nothing except `value`.
 
-When someone calls your function, the compiler ensures they can only pass non-zero values.
-
-### More refined type examples:
+Some more examples:
 
 ```rust
 type PositiveInt = Int where value > 0;
 type ValidAge = Int where value >= 0 && value < 150;
-type EmailAddress = String where value.contains("@");
+type Origin = Point where value.x == 0 && value.y == 0;
 ```
 
-### Try it yourself:
-- Create a refined type for a percentage (0-100)
-- Write a function that uses your refined type
-- Observe how the compiler prevents invalid values
+Try it out yourself.
 
-## No More Nulls: Maybe Types
+## Maybe Types
 
-Instead of null references that cause crashes, Verifex uses **maybe types** to explicitly handle cases where a value might not exist:
+Verifex gives you *union types* (a type that can be any of several) under the name 'Maybe Type'.
 
 ```rust
 // This function might not find a user
@@ -90,20 +101,19 @@ fn find_user(id: Int) -> User or NotFound {
         return NotFound { message: "User not found" };
 }
 
-// You must handle both possibilities
 fn greet_user(id: Int) {
     let result = find_user(id);
     
-    check result {
-        User -> io.print("Hello, " + result.name + "!"),
-        NotFound -> io.print("User not found")
+    if (result is User) {
+        print("Hello, " + result.name + "!");
+        return;
     }
+
+    print("Error: " + result.message);
 }
 ```
 
-### Try it yourself:
-- Create a function that might fail
-- Use the `check` statement to handle both outcomes
+The `is` operator lets you test which type a maybe type takes. The compiler automatically "morphs" the maybe-type throughout the program as needed. Within the `if` statement above, it knows `result` is a `User`, so it allows you to treat it like one. It also knows that after the block it must be `NotFound`.
 
 ## Data Organization: Structs
 
@@ -116,7 +126,7 @@ struct Point {
     
     // Methods can be added to structs
     fn distance_from_origin() -> Real {
-        return Math.sqrt(x*x + y*y);
+        return sqrt(x*x + y*y);
     }
     
     // Static method (like a constructor)
@@ -130,12 +140,7 @@ let home = Point { x: 5, y: 12 };
 let distance = home.distance_from_origin();  // 13
 ```
 
-### Try it yourself:
-- Create a struct for a rectangle with width and height
-- Add a method to calculate its area
-- Create instances and call the method
-
-## Composition: Building Complex Types
+## Composition
 
 Verifex uses composition rather than inheritance to build complex types:
 
@@ -145,7 +150,7 @@ struct Animal {
     age: NonNegativeInt,
     
     fn make_sound() {
-        io.print("Generic animal sound");
+        print("Generic animal sound");
     }
 }
 
@@ -155,23 +160,22 @@ struct Bird {
     
     // Override the sound method
     fn make_sound() {
-        io.print("Tweet tweet");
+        print("Chirp");
     }
     
     fn fly() {
-        io.print(name + " is flying with " + wingspan + " wings!");
+        print(name + " is flying with " + wingspan + "cm wings!");
     }
 }
 ```
 
-### Try it yourself:
-- Create a base struct
-- Create another struct that embeds it
-- Add methods to both and see how they interact
+When you embed a struct into another one, all of its fields and methods (except static ones) get embedded.
 
 ## Archetypes: Defining Capabilities
 
-Archetypes in Verifex are similar to interfaces in other languages - they define what methods and fields a struct should have:
+(Not implemented yet)
+
+Archetypes in Verifex are similar to interfaces in other languages - they define what methods *and fields* a type should have:
 
 ```rust
 archetype Drawable {
@@ -188,20 +192,20 @@ struct Circle {
 
 // Any struct with a draw method can be used where Drawable is expected
 fn render(item: Drawable) {
-    io.print(item.draw());
+    print(item.draw());
 }
 
-render(Circle { radius: 5 });  // ○
+fn main() {
+    render(Circle { radius: 5 });  // ○
+}
 ```
 
-### Try it yourself:
-- Create an archetype for shapes
-- Implement it with different structs
-- Write a function that works with any shape
+## Loops and Collections
 
-## Collections
+Verifex supports arrays and while loops.
 
-Verifex supports arrays and other collections:
+The `#` operator works with strings and arrays, and returns their length
+
 
 ```rust
 // Arrays
@@ -212,75 +216,9 @@ let names: String[] = ["Alice", "Bob", "Charlie"];
 let first = numbers[0];  // 1
 
 // Iterating
-for (let i = 0; i < names.length; i++) {
-    io.print(names[i]);
-}
-
-// Or more concisely
-for (String name in names) {
-    io.print(name);
+mut i = 0;
+while (i < #names) {
+    print(names[i]);
+    i = i + 1;
 }
 ```
-
-### Try it yourself:
-- Create an array of numbers
-- Calculate the sum using a loop
-- Find the maximum value in the array
-
-## Putting It All Together
-
-Let's see a more complete example combining these features:
-
-```rust
-// Define refined types for our constraints
-type PositiveInt = Int where value > 0;
-type NonEmptyString = String where value.length > 0;
-
-// Define a data structure
-struct Product {
-    id: PositiveInt,
-    name: NonEmptyString,
-    price: PositiveInt,
-    
-    fn display() {
-        io.print(id + ": " + name + " - $" + (price / 100));
-    }
-}
-
-// A function that might fail
-fn find_product(id: PositiveInt) -> Product or NotFound {
-    // Implementation details...
-    if (productExists) 
-        return product;
-    else
-        return NotFound { message: "Product not found" };
-}
-
-// Main function using these concepts
-fn main() {
-    let products = [
-        Product { id: 1, name: "Phone", price: 79900 },
-        Product { id: 2, name: "Laptop", price: 129900 },
-        Product { id: 3, name: "Headphones", price: 14900 }
-    ];
-    
-    for (Product product in products) {
-        product.display();
-    }
-    
-    let result = find_product(4);
-    check result {
-        Product -> result.display(),
-        NotFound -> io.print("Sorry, product not found")
-    }
-}
-```
-
-## Next Steps
-
-- Try the examples provided in VerifexPad
-- Modify them to experiment with different features
-- Create your own programs combining multiple Verifex concepts
-- Check out the full [Verifex documentation](https://github.com/yourusername/verifex) for more details
-
-Happy coding with Verifex!

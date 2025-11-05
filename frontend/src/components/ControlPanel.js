@@ -38,7 +38,7 @@ const Button = styled.button`
   }
 
   &:disabled {
-    background-color: #4d4d4d;
+    background-color: ${props => props.theme.name === 'dark' ? '#4d4d4d' : '#cccccc'};
     cursor: not-allowed;
   }
 `;

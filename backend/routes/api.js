@@ -3,14 +3,6 @@ const router = express.Router();
 const dockerService = require('../services/dockerService');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const os = require('os');
-
-// Temp directory for code execution
-const TEMP_DIR = path.join(os.tmpdir(), 'verifexpad');
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
-}
 
 /**
  * Compile and run Verifex code

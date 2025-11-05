@@ -1,5 +1,5 @@
 services:
-  # Verifex compiler container for secure code execution
+  # Long-lived Verifex compiler container
   verifex-compiler:
     build:
       context: ./backend
@@ -7,19 +7,14 @@ services:
       args:
         - VERIFEX_VERSION=${VERIFEX_VERSION:-master}
     image: verifex-compiler
+    container_name: ${VERIFEX_CONTAINER_NAME:-verifexpad-compiler}
+    command: ["tail", "-f", "/dev/null"]
+    restart: unless-stopped
     read_only: true
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges
-    networks:
-      - verifex-net
-    # Not exposing any ports as it's only used internally for code execution
-    volumes:
-      - /tmp:/tmp
+    network_mode: none
     tmpfs:
-      - /tmp/code:rw,exec,mode=1777
-
-networks:
-  verifex-net:
-    driver: bridge
+      - /tmp/verifexpad:rw,exec,mode=1777

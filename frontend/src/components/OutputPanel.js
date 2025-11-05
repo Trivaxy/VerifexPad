@@ -55,7 +55,7 @@ const OutputPanel = ({ result }) => {
             <ErrorText theme={theme}>Compilation Failed</ErrorText>
         )}
       </OutputHeader>
-      <OutputContent>
+      <OutputContent theme={theme}>
         {error && <ErrorText theme={theme}>{error}</ErrorText>}
         {output && output}
         {!error && !output && "Run your code to see output here."}

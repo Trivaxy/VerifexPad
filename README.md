@@ -1,89 +1,78 @@
 # VerifexPad
 
-VerifexPad is an online playground for the Verifex programming language, allowing users to write, compile, and execute Verifex code directly in their browser.
+VerifexPad is an online playground for the Verifex programming language. The frontend is a static React single-page app that can be hosted anywhere (GitHub Pages, Netlify, S3, etc.), while the backend exposes a simple REST API that reuses a single sandboxed Docker container to compile and run code.
 
-## Project Structure
+## Project Layout
 
-- **Frontend**: React application with Monaco Editor for code editing (runs natively, no Docker)
-- **Backend**: Express.js API server for handling code compilation requests (runs natively, no Docker)
-- **Compiler**: Dockerized Verifex compiler for secure code execution (only component using Docker)
+- **frontend/** – React app with Monaco Editor. Builds to a static `build/` directory that can be uploaded to any static host.
+- **backend/** – Express API server. On start it keeps one Verifex compiler container alive and executes requests inside it via `docker exec`.
+- **backend/Dockerfile** – Produces the `verifex-compiler` image containing the compiler and runtime dependencies.
+- **docker-compose.yml** – Optional helper to build and run the shared compiler container locally.
 
-## Setup
+## Prerequisites
 
-### Prerequisites
+- Node.js 18+
+- Docker (only required for real code execution)
+- .NET 9.0 SDK (only needed if you want to rebuild the compiler image)
 
-- Node.js (v18+)
-- .NET 9.0 SDK (for building the Verifex compiler)
-- Docker (required only for secure code execution)
+## Local Development
 
-### Building the Verifex Compiler Container
+1. **Build the compiler image** (from `VerifexPad/`):
+   ```bash
+   docker compose build verifex-compiler
+   ```
+   The backend will start the container for you on demand. You can also keep it running by hand:
+   ```bash
+   docker compose up -d verifex-compiler
+   ```
 
-```bash
-# From the VerifexPad directory
-docker-compose build verifex-compiler
-```
+2. **Backend**:
+   ```bash
+   cd backend
+   npm install
+   npm run dev   # starts on http://localhost:3001
+   ```
+   The server will launch the `verifexpad-compiler` container if it is not already running and will reuse it for every compilation.
 
-### Frontend Setup
+3. **Frontend**:
+   ```bash
+   cd frontend
+   npm install
+   npm start     # dev server on http://localhost:3000
+   ```
+   During development the CRA proxy forwards `/api` to `http://localhost:3001`. For a static build, set `REACT_APP_API_URL` to your backend URL before `npm run build`.
 
-```bash
-cd VerifexPad/frontend
-npm install
-npm start
-```
-
-The frontend will run on [http://localhost:3000](http://localhost:3000)
-
-### Backend Setup
-
-```bash
-cd VerifexPad/backend
-npm install
-npm run dev
-```
-
-The backend will run on [http://localhost:3001](http://localhost:3001)
-
-## Architecture
-
-### Security Model
-
-- **Frontend & Backend**: Run natively for development convenience
-- **Code Execution**: All user code runs inside a highly restricted Docker container with:
-  - Read-only filesystem
-  - Limited CPU and memory resources
-  - No network access
-  - Non-root user execution
-  - Execution timeouts
-
-This approach balances developer experience with security for user code execution.
-
-## Development Notes
-
-### Using Without Docker for Code Execution
-
-If Docker is not available in your environment, the backend will automatically fall back to simulation mode. This allows you to test the UI and API without needing to build the Docker container.
-
-### Running on Windows WSL
-
-When running in WSL, you may encounter file system permission issues when installing npm dependencies. In those cases:
-
-1. Try running in Windows terminal directly
-2. Or create a fresh install in a different directory
-3. Or use `--no-bin-links` flag with npm install
-
-### Manual Testing
-
-To manually test the API without the frontend:
+## Static Hosting Flow
 
 ```bash
-curl -X POST http://localhost:3001/api/compile \
-  -H "Content-Type: application/json" \
-  -d '{"code":"fn main() { io.print(\"Hello, Verifex!\"); }"}'
+cd frontend
+REACT_APP_API_URL="https://your-backend.example.com/api" npm run build
 ```
+Deploy the generated `build/` folder to GitHub Pages or any static host. The backend can live on a separate domain; just make sure CORS is enabled (already handled in `backend/index.js`).
 
-## Future Enhancements
+## Security & Sandboxing
 
-- Custom syntax highlighting for Verifex language
-- Saving and sharing code snippets
-- User accounts and saved programs
-- More example programs and tutorials
+All compilation happens inside a long-lived Docker container that is configured with:
+
+- Read-only root filesystem plus an isolated tmpfs workspace (`/tmp/verifexpad`)
+- CPU and memory limits (`DOCKER_CPU_LIMIT`, `DOCKER_MEMORY_LIMIT`)
+- No network access (`DOCKER_DISABLE_NETWORK`)
+- Non-root execution (`verifexuser`)
+- Request timeouts (`DOCKER_TIMEOUT`, default 10 seconds)
+
+For environments without Docker, the backend automatically falls back to a lightweight simulator for development/demo purposes.
+
+## Useful Commands
+
+- Manual API test:
+  ```bash
+  curl -X POST http://localhost:3001/api/compile \
+    -H "Content-Type: application/json" \
+    -d '{"code":"fn main() { io.print(\"Hello, Verifex!\"); }"}'
+  ```
+- Tear down the compiler container:
+  ```bash
+  docker rm -f verifexpad-compiler
+  ```
+
+See `DEPLOYMENT.md` for production-oriented notes. Future work ideas live in `CODEBASE.md`.

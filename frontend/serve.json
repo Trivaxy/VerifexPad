@@ -1,0 +1,16 @@
+{
+  "public": "build",
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/api/**", "destination": "http://localhost:3001" }
+  ],
+  "redirects": [],
+  "headers": [
+    {
+      "source": "**/*.@(jpg|jpeg|gif|png|svg|webp)",
+      "headers": [{ "key": "Cache-Control", "value": "max-age=31536000" }]
+    }
+  ],
+  "cleanUrls": true,
+  "single": "index.html"
+}
