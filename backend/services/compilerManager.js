@@ -62,12 +62,7 @@ async function bootstrapCompiler() {
   const repoDir = path.join(buildDir, 'Verifex');
   await run('git', ['clone', '--branch', VERIFEX_VERSION, '--depth', '1', COMPILER_REPO, repoDir]);
 
-  const csprojPath = path.join(
-    repoDir,
-    'Verifex',
-    'Verifex',
-    'Verifex.csproj'
-  );
+  const csprojPath = path.join(repoDir, 'Verifex', 'Verifex.csproj');
   await run('dotnet', ['publish', csprojPath, '-c', 'Release', '-o', compilerDir]);
 
   await installZ3();
