@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const dockerService = require('../services/dockerService');
+const firejailService = require('../services/firejailService');
 const fs = require('fs');
 const path = require('path');
+const FIREJAIL_DISABLED = process.env.FIREJAIL_DISABLED === 'true';
 
 /**
  * Compile and run Verifex code
@@ -18,23 +19,18 @@ router.post('/compile', async (req, res) => {
   }
 
   try {
-    // For development, check if Docker is actually available
-    const isDockerAvailable = await checkDockerAvailability();
-
     let result;
-    if (isDockerAvailable) {
-      try {
-        result = await dockerService.compileAndRun(code);
-      } catch (dockerError) {
-        console.error('Docker execution failed:', dockerError);
-        // Fallback to simulation only if Docker execution fails
-        console.log('Docker execution failed, using simulation mode');
-        result = await dockerService.simulateCompileAndRun(code);
-      }
+    if (FIREJAIL_DISABLED) {
+      console.log('Firejail disabled, using simulation mode');
+      result = await firejailService.simulateCompileAndRun(code);
     } else {
-      // Fallback to simulation for development
-      console.log('Docker not available, using simulation mode');
-      result = await dockerService.simulateCompileAndRun(code);
+      try {
+        result = await firejailService.compileAndRun(code);
+      } catch (sandboxError) {
+        console.error('Firejail execution failed:', sandboxError);
+        console.log('Falling back to simulation mode');
+        result = await firejailService.simulateCompileAndRun(code);
+      }
     }
 
     res.json(result);
@@ -82,18 +78,5 @@ router.get('/reference', (req, res) => {
 router.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
-
-/**
- * Check if Docker is available on the system
- * @returns {Promise<boolean>} Whether Docker is available
- */
-async function checkDockerAvailability() {
-  try {
-    await require('util').promisify(require('child_process').exec)('docker --version');
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
 
 module.exports = router;

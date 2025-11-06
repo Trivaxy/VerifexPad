@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const apiRoutes = require('./routes/api');
+const compilerManager = require('./services/compilerManager');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,7 +20,17 @@ app.get('/', (req, res) => {
   res.json({ message: 'VerifexPad API Server' });
 });
 
-// Start server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VerifexPad backend server running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await compilerManager.ensureCompilerReady();
+  } catch (error) {
+    console.error('Failed to prepare Verifex compiler:', error);
+    process.exit(1);
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`VerifexPad backend server running on port ${PORT}`);
+  });
+}
+
+startServer();

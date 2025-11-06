@@ -1,12 +1,15 @@
 # VerifexPad Deployment Guide
 
-This guide covers a minimal production setup: the backend runs on a server, the compiler lives in one long-running Docker container, and the frontend is served as static files.
+This guide walks through a minimal production setup: the backend hosts the API, bootstraps the Verifex compiler automatically, and executes programs through Firejail. The frontend is served as static assets (any CDN or reverse proxy works).
 
 ## Prerequisites
 
-- Docker Engine 23+
 - Node.js 18+
-- Git (for fetching the repo or CI checkout)
+- .NET 9.0 SDK
+- Firejail (ensure the backend user can invoke it)
+- Git, `wget`, and `unzip`
+
+> The backend clones and builds the compiler during startup. Firejail plus the .NET SDK must therefore be available on the same host.
 
 ## 1. Fetch the sources
 
@@ -15,46 +18,43 @@ git clone https://github.com/your-username/VerifexPad.git
 cd VerifexPad
 ```
 
-## 2. Build and start the compiler container
-
-Build the image once (re-run when you update the compiler):
-```bash
-docker compose build verifex-compiler
-```
-
-Running the container in the background:
-```bash
-docker compose up -d verifex-compiler
-```
-
-> The backend can also start the container on demand if you skip the `up -d` step. Keeping it pre-started removes the first-request warm-up.
-
-## 3. Deploy the backend API
+## 2. Prepare the backend API
 
 ```bash
 cd backend
 npm install
-
-# Configure environment (see below) and start with your preferred process manager
-NODE_ENV=production node index.js
-# or
-pm2 start index.js --name verifexpad-backend
 ```
+
+On first launch the backend will:
+
+1. Clone the compiler repo (`VERIFEX_COMPILER_REPO`, default upstream Verifex).
+2. `dotnet publish -c Release` the compiler into `../compiler/`.
+3. Download the Z3 archive (`Z3_DOWNLOAD_URL`) and copy `libz3.so` beside the published DLL.
+
+All later restarts reuse the cached `compiler/` directory. Delete it if you need to rebuild (new commit, different branch, etc.).
 
 ### Backend environment variables
 
-- `PORT` – HTTP port (default `3001`)
-- `VERIFEX_CONTAINER_NAME` – container name to reuse (default `verifexpad-compiler`)
-- `VERIFEX_COMPILER_IMAGE` – image name (default `verifex-compiler`)
-- `VERIFEX_CONTAINER_WORKDIR` – workspace inside the container (default `/tmp/verifexpad`)
-- `DOCKER_MEMORY_LIMIT` – passed to `docker run --memory` (default `256m`)
-- `DOCKER_CPU_LIMIT` – passed to `docker run --cpus` (default `0.5`)
-- `DOCKER_TIMEOUT` – execution timeout in seconds (default `10`)
-- `DOCKER_DISABLE_NETWORK` – set to `false` to allow networking (default keeps networking disabled)
+- `PORT` – HTTP port (default `3001`).
+- `VERIFEX_VERSION` – Branch/tag to clone (default `master`).
+- `VERIFEX_COMPILER_REPO` – Source repository (default official Verifex).
+- `Z3_DOWNLOAD_URL` – Zip containing the Z3 native library (default 4.12.2 glibc 2.31 build).
+- `SANDBOX_TIMEOUT_MS` – Kill Firejail after this many ms (default `10000`).
+- `FIREJAIL_PATH` – Override path to the binary (default `firejail`).
+- `FIREJAIL_EXTRA_ARGS` – Extra hardening flags appended to the firejail invocation.
+- `FIREJAIL_DISABLED` – Set to `true` to use the simulator instead of the real compiler (for trusted local development only).
 
-The backend exposes CORS for all origins, so you can host the frontend on a different domain.
+### Running the backend
 
-## 4. Publish the frontend
+```bash
+NODE_ENV=production node index.js
+# or with a process manager
+pm2 start index.js --name verifexpad-backend
+```
+
+`compiler/` sits in the repository root, so keep it writable by the backend user. Firejail must also be executable by that user (usually by keeping the user in the `firejail` group on Linux distros that enforce it).
+
+## 3. Publish the frontend
 
 ```bash
 cd ../frontend
@@ -62,11 +62,11 @@ npm install
 REACT_APP_API_URL="https://api.your-domain.com/api" npm run build
 ```
 
-Upload the generated `build/` directory to your static host (GitHub Pages, Netlify, CloudFront, etc.). If you host under a sub-path, update your host configuration to rewrite requests to `index.html`.
+Upload `frontend/build/` to your preferred static host (GitHub Pages, Netlify, S3/CloudFront, etc.). If you host the backend and frontend on the same domain, configure your reverse proxy to forward `/api` to the backend as shown below.
 
-## 5. Optional reverse proxy
+## 4. Optional reverse proxy
 
-If you prefer a single domain, proxy `/api` to the backend and serve the static files directly. Example Nginx snippet:
+Example Nginx snippet:
 
 ```nginx
 server {
@@ -88,8 +88,9 @@ server {
 
 ## Troubleshooting
 
-- Ensure the backend user belongs to the `docker` group or run it with sufficient privileges.
-- `docker ps` should show a single `verifexpad-compiler` container in the `Up` state. Inspect its logs with `docker logs verifexpad-compiler`.
-- If `docker exec` calls fail with buffering errors, bump `DOCKER_TIMEOUT` or the buffer settings inside `services/dockerService.js`.
+- **Firejail missing** – Install it via your distro (`sudo apt install firejail`) and ensure the backend user can invoke it without sudo.
+- **Bootstrap failures** – The first boot logs every command with a `[compiler]` prefix. Missing `git`, `dotnet`, `wget`, or `unzip` will cause immediate failures; install them and restart.
+- **Need a clean rebuild** – Stop the backend, delete the `compiler/` directory, and start the server again.
+- **Sandbox tuning** – Use `FIREJAIL_EXTRA_ARGS="--private --private-tmp"` (or similar) to tighten the sandbox. Validate your flags with `firejail --build=...` before deploying them broadly.
 
-Enjoy hacking on VerifexPad!
+Once these steps are complete you can serve the frontend from a CDN, proxy `/api` to the backend, and rely on Firejail for lightweight isolation of every Verifex compilation.
