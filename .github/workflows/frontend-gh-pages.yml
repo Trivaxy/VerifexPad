@@ -21,7 +21,7 @@ jobs:
         working-directory: frontend
     env:
       PUBLIC_URL: https://trivaxy.github.io/VerifexPad/
-      REACT_APP_API_URL: https://141.147.130.35:3001/api
+      REACT_APP_API_URL: https://130.110.112.92:3001/api
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
