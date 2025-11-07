@@ -1,6 +1,5 @@
 const fs = require('fs');
 const fsp = fs.promises;
-const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const compilerManager = require('./compilerManager');
@@ -14,9 +13,12 @@ const SANDBOX_TIMEOUT_MS = parseInt(
 class FirejailService {
   async compileAndRun(code) {
     await compilerManager.ensureCompilerReady();
+    const { compilerDir } = compilerManager.getCompilerPaths();
+    const sessionsRoot = path.join(compilerDir, 'sessions');
+    await fsp.mkdir(sessionsRoot, { recursive: true });
 
     const sessionDir = await fsp.mkdtemp(
-      path.join(os.tmpdir(), 'verifexpad-session-')
+      path.join(sessionsRoot, 'verifexpad-session-')
     );
     const programPath = path.join(sessionDir, 'program.vfx');
     await fsp.writeFile(programPath, code, 'utf8');
