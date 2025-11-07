@@ -64,6 +64,7 @@ class FirejailService {
     const sessionDir = path.dirname(programPath);
     
     const firejailArgs = [
+      '--noprofile',
       '--quiet',
       '--net=none',
       '--caps.drop=all',
