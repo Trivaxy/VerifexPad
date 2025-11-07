@@ -65,6 +65,8 @@ class FirejailService {
       '--net=none',
       '--private-tmp',
       '--caps.drop=all',
+      // Whitelist compiler directory for read-only access (contains Verifex binary, libz3.so, dotnet runtime)
+      `--read-only=${compilerDir}`,
       `--env=LD_LIBRARY_PATH=${compilerDir}`
     ];
 
