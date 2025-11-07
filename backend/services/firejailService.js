@@ -53,25 +53,25 @@ class FirejailService {
     const { compilerDir, entryPoint, selfContained, dotnetRoot } =
       compilerManager.getCompilerPaths();
     
-    // Diagnostic logging
-    console.log('[firejail] Compiler directory:', compilerDir);
-    console.log('[firejail] Entry point:', entryPoint);
-    console.log('[firejail] Self-contained:', selfContained);
-    console.log('[firejail] Dotnet root:', dotnetRoot);
-    console.log('[firejail] Program path:', programPath);
-    
     // Get session directory from program path
     const sessionDir = path.dirname(programPath);
     
     const firejailArgs = [
-      '--noprofile',
       '--quiet',
+      // Network and capability restrictions
       '--net=none',
       '--caps.drop=all',
-      // Whitelist compiler directory (needed for Verifex binary, dotnet runtime, libz3.so)
+      '--noroot',
+      // Filesystem isolation - private /dev, /tmp, and strict whitelisting
+      '--private-dev',
+      '--private-tmp',
+      '--private',
+      // Whitelist only necessary directories (compiler and session)
       `--whitelist=${compilerDir}`,
-      // Session directory needs read-write access for input/output files
       `--whitelist=${sessionDir}`,
+      // Seccomp filtering for additional syscall restrictions
+      '--seccomp',
+      // Environment variables
       `--env=LD_LIBRARY_PATH=${compilerDir}`
     ];
 
@@ -95,7 +95,6 @@ class FirejailService {
       firejailArgs.push('dotnet', entryPoint, programPath);
     }
 
-    console.log('[firejail] Full command:', FIREJAIL_CMD, firejailArgs.join(' '));
     return spawnWithTimeout(FIREJAIL_CMD, firejailArgs, SANDBOX_TIMEOUT_MS);
   }
 
