@@ -57,17 +57,17 @@ class FirejailService {
     const sessionDir = path.dirname(programPath);
     const sessionName = path.basename(sessionDir);
     
-    // Calculate paths relative to the sandboxed $HOME (which will be compilerDir)
-    const jailHome = '$HOME';
-    const jailEntryPoint = selfContained
-      ? path.join(jailHome, path.basename(entryPoint))
-      : 'dotnet';
-    const jailDllPath = selfContained
-      ? null
-      : path.join(jailHome, path.basename(entryPoint));
-    const jailProgramPath = path.join(jailHome, 'sessions', sessionName, 'program.vfx');
-    const jailDotnetRoot = path.join(jailHome, 'dotnet');
-    const jailExtractDir = path.join(jailHome, 'sessions', sessionName, '.net-extract');
+    // With --private=compilerDir, that directory becomes the user's home
+    // Paths inside the jail are relative to the new home directory
+    const os = require('os');
+    const username = os.userInfo().username;
+    const jailHomeBase = process.platform === 'win32' ? '/home/' + username : '/home/' + username;
+    
+    const jailEntryPoint = path.join(jailHomeBase, path.basename(entryPoint));
+    const jailDllPath = path.join(jailHomeBase, path.basename(entryPoint));
+    const jailProgramPath = path.join(jailHomeBase, 'sessions', sessionName, 'program.vfx');
+    const jailDotnetRoot = path.join(jailHomeBase, 'dotnet');
+    const jailExtractDir = path.join(jailHomeBase, 'sessions', sessionName, '.net-extract');
     
     const firejailArgs = [
       '--noprofile',
@@ -84,8 +84,8 @@ class FirejailService {
       '--private-etc=hosts,hostname,resolv.conf',
       // Timeout protection
       `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000).toString().padStart(2, '0')}`,
-      // Environment variables (paths relative to jail's $HOME)
-      `--env=LD_LIBRARY_PATH=${jailHome}`,
+      // Environment variables
+      `--env=LD_LIBRARY_PATH=${jailHomeBase}`,
       `--env=DOTNET_ROOT=${jailDotnetRoot}`,
       `--env=DOTNET_BUNDLE_EXTRACT_BASE_DIR=${jailExtractDir}`
     ];
