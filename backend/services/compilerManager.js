@@ -12,6 +12,7 @@ const Z3_DOWNLOAD_URL =
 const DOTNET_RUNTIME_URL =
   process.env.DOTNET_RUNTIME_URL ||
   'https://dotnetcli.azureedge.net/dotnet/Runtime/9.0.0/dotnet-runtime-9.0.0-linux-x64.tar.gz';
+const OUTPUT_PATCH_MARKER = '// VerifexPad output forwarding patch';
 const DEFAULT_RUNTIME_ID =
   process.env.VERIFEX_RUNTIME_ID || 'linux-x64';
 const EXECUTABLE_NAME =
@@ -20,6 +21,8 @@ const EXECUTABLE_NAME =
 const SHOULD_BUNDLE_DOTNET =
   process.env.VERIFEX_BUNDLE_DOTNET_RUNTIME !== 'false' &&
   process.platform === 'linux';
+const COMPILER_SCHEMA_VERSION = '2';
+const VERSION_FILENAME = '.verifexpad-version';
 const DOTNET_DIRNAME = 'dotnet';
 const DOTNET_BINARY_NAME = process.platform === 'win32' ? 'dotnet.exe' : 'dotnet';
 
@@ -29,12 +32,14 @@ const dotnetRelativeBinary = path.join(DOTNET_DIRNAME, DOTNET_BINARY_NAME);
 const SINGLE_FILE_ARTIFACTS = [
   EXECUTABLE_NAME,
   'libz3.so',
-  ...(SHOULD_BUNDLE_DOTNET ? [dotnetRelativeBinary] : [])
+  ...(SHOULD_BUNDLE_DOTNET ? [dotnetRelativeBinary] : []),
+  VERSION_FILENAME
 ];
 const FRAMEWORK_DEPENDENT_ARTIFACTS = [
   'Verifex.dll',
   'Verifex.runtimeconfig.json',
-  'libz3.so'
+  'libz3.so',
+  VERSION_FILENAME
 ];
 
 let ensurePromise = null;
@@ -87,6 +92,7 @@ async function bootstrapCompiler() {
 
   const repoDir = path.join(buildDir, 'Verifex');
   await run('git', ['clone', '--branch', VERIFEX_VERSION, '--depth', '1', COMPILER_REPO, repoDir]);
+  await patchUpstreamCompiler(repoDir);
 
   const csprojPath = path.join(repoDir, 'Verifex', 'Verifex.csproj');
   await run('dotnet', [
@@ -107,6 +113,11 @@ async function bootstrapCompiler() {
   if (SHOULD_BUNDLE_DOTNET) {
     await installDotnetRuntime();
   }
+  await fsp.writeFile(
+    path.join(compilerDir, VERSION_FILENAME),
+    COMPILER_SCHEMA_VERSION,
+    'utf8'
+  );
 
   await fsp.rm(buildDir, { recursive: true, force: true });
 }
@@ -133,6 +144,40 @@ async function installDotnetRuntime() {
 
   const dotnetBinary = path.join(dotnetRoot, DOTNET_BINARY_NAME);
   await fsp.chmod(dotnetBinary, 0o755);
+}
+
+async function patchUpstreamCompiler(repoDir) {
+  const programPath = path.join(repoDir, 'Verifex', 'Program.cs');
+  let contents = await fsp.readFile(programPath, 'utf8');
+
+  if (contents.includes(OUTPUT_PATCH_MARKER)) {
+    return;
+  }
+
+  const needle =
+    '    Console.WriteLine("----------------------------");';
+
+  if (!contents.includes(needle)) {
+    throw new Error('Unable to locate output patch insertion point');
+  }
+
+  const replacement = [
+    '    process.WaitForExit();',
+    '    process.CancelOutputRead();',
+    '    process.CancelErrorRead();',
+    `    ${OUTPUT_PATCH_MARKER}`,
+    '',
+    needle
+  ].join('\n');
+
+  const updated = contents.replace(needle, replacement);
+
+  if (updated === contents) {
+    throw new Error('Failed to apply output forwarding patch');
+  }
+
+  await fsp.writeFile(programPath, updated, 'utf8');
+  console.log('[compiler] Applied Verifex output forwarding patch.');
 }
 
 function run(command, args, options = {}) {
