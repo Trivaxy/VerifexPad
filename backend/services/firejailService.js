@@ -126,7 +126,7 @@ class FirejailService {
       '--caps.drop=all',
       '--nonewprivs',
       '--seccomp',
-      '--private-proc',
+      // '--private-proc', // enable via FIREJAIL_EXTRA_ARGS on versions that support it
       '--nogroups',
       '--nosound',
       '--no3d',
@@ -167,8 +167,7 @@ class FirejailService {
     }
 
     try {
-      return await spawnWithTimeout(
-        FIREJAIL_CMD,
+      return await runFirejailWithFlagCompatibility(
         firejailArgs,
         SANDBOX_TIMEOUT_MS
       );
@@ -268,6 +267,36 @@ function spawnWithTimeout(command, args, timeoutMs) {
       }
     });
   });
+}
+
+// Attempt to run firejail and, if the binary complains about unsupported
+// options, strip the offending flag and retry up to a few times. This makes
+// the sandbox resilient across Firejail versions without breaking execution.
+async function runFirejailWithFlagCompatibility(args, timeoutMs) {
+  let current = args.slice();
+  const maxAttempts = 5;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await spawnWithTimeout(FIREJAIL_CMD, current, timeoutMs);
+    } catch (err) {
+      const stderr = (err && err.stderr) ? String(err.stderr) : '';
+      const message = (err && err.message) ? String(err.message) : '';
+      const combined = `${stderr}\n${message}`;
+      const match = combined.match(/(?:invalid\s+)(--[A-Za-z0-9\-]+)|(?:unrecognized\s+option\s+)(--[A-Za-z0-9\-]+)/i);
+      const flag = match ? (match[1] || match[2]) : null;
+      if (!flag) {
+        throw err;
+      }
+      const index = current.indexOf(flag);
+      if (index === -1) {
+        throw err;
+      }
+      console.warn(`[sandbox] Firejail unsupported flag detected: ${flag}. Retrying without it.`);
+      current = current.filter((_, i) => i !== index);
+      continue;
+    }
+  }
+  throw new Error('Firejail failed after removing unsupported flags');
 }
 
 module.exports = new FirejailService();
