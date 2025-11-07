@@ -62,23 +62,23 @@ class FirejailService {
       // Network and privilege restrictions
       '--net=none',
       '--caps.drop=all',
-      '--noroot',
-      // Isolated /dev and /tmp
+      '--nonewprivs',
+      '--seccomp',
+      // Complete filesystem isolation with selective whitelisting
+      '--private',
       '--private-dev',
       '--private-tmp',
-      // Whitelist only necessary directories
+      '--private-etc=hosts,hostname,resolv.conf',
+      // Whitelist compiler directory (read-only to prevent tampering)
       `--whitelist=${compilerDir}`,
+      `--read-only=${compilerDir}`,
+      // Whitelist session directory (needs write access for I/O)
       `--whitelist=${sessionDir}`,
-      // Blacklist sensitive directories (excluding /home since compiler is there)
-      '--blacklist=/boot',
-      '--blacklist=/root',
-      '--blacklist=/opt',
-      '--blacklist=/media',
-      '--blacklist=/mnt',
       // Timeout protection
       `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000).toString().padStart(2, '0')}`,
       // Environment variables
-      `--env=LD_LIBRARY_PATH=${compilerDir}`
+      `--env=LD_LIBRARY_PATH=${compilerDir}`,
+      `--env=DOTNET_BUNDLE_EXTRACT_BASE_DIR=${sessionDir}/.net-extract`
     ];
 
     if (dotnetRoot) {
