@@ -138,8 +138,8 @@ class FirejailService {
       '--private-tmp',
       '--private-etc=hosts,hostname,resolv.conf',
       // Resource ceilings
-      '--rlimit-as=512M',
-      '--rlimit-fsize=16M',
+      '--rlimit-as=512m',
+      '--rlimit-fsize=16m',
       '--rlimit-nproc=128',
       '--rlimit-nofile=256',
       '--rlimit-cpu=2',
