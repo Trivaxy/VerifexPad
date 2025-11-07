@@ -21,7 +21,7 @@ const EXECUTABLE_NAME =
 const SHOULD_BUNDLE_DOTNET =
   process.env.VERIFEX_BUNDLE_DOTNET_RUNTIME !== 'false' &&
   process.platform === 'linux';
-const COMPILER_SCHEMA_VERSION = '3';
+const COMPILER_SCHEMA_VERSION = '4';
 const VERSION_FILENAME = '.verifexpad-version';
 const DOTNET_DIRNAME = 'dotnet';
 const DOTNET_BINARY_NAME = process.platform === 'win32' ? 'dotnet.exe' : 'dotnet';
@@ -82,13 +82,22 @@ async function artifactsExist(artifacts) {
 }
 
 async function isCompilerReady() {
+  // Require version sentinel to match
+  try {
+    const versionPath = path.join(compilerDir, VERSION_FILENAME);
+    const version = (await fsp.readFile(versionPath, 'utf8')).trim();
+    if (version !== COMPILER_SCHEMA_VERSION) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
   if (await artifactsExist(SINGLE_FILE_ARTIFACTS)) {
     return true;
   }
   return artifactsExist(FRAMEWORK_DEPENDENT_ARTIFACTS);
-}
-
-async function bootstrapCompiler() {
+}\r\n\r\nasync function bootstrapCompiler() {
   await fsp.rm(compilerDir, { recursive: true, force: true });
   await fsp.mkdir(compilerDir, { recursive: true });
   await fsp.rm(buildDir, { recursive: true, force: true });
@@ -143,10 +152,10 @@ async function installDotnetRuntime() {
   await run('wget', [DOTNET_RUNTIME_URL, '-O', tarPath]);
 
   const dotnetRoot = path.join(compilerDir, DOTNET_DIRNAME);
+  await fsp.rm(dotnetRoot, { recursive: true, force: true });
   await fsp.mkdir(dotnetRoot, { recursive: true });
-  const tarArgs = ['-xzf', tarPath, '-C', dotnetRoot, '--strip-components=1'];
-  await run('tar', tarArgs);
-
+  await run('tar', ['-xzf', tarPath, '-C', dotnetRoot]);
+ 
   const dotnetBinary = path.join(dotnetRoot, DOTNET_BINARY_NAME);
   await fsp.chmod(dotnetBinary, 0o755);
   await fsp.access(path.join(dotnetRoot, 'host', 'fxr'), fs.constants.R_OK);
