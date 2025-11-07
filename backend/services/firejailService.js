@@ -87,7 +87,8 @@ class FirejailService {
       // Environment variables
       `--env=LD_LIBRARY_PATH=${jailHomeBase}`,
       `--env=DOTNET_ROOT=${jailDotnetRoot}`,
-      `--env=DOTNET_BUNDLE_EXTRACT_BASE_DIR=${jailExtractDir}`
+      `--env=DOTNET_BUNDLE_EXTRACT_BASE_DIR=${jailExtractDir}`,
+      `--env=PATH=${jailDotnetRoot}:/usr/local/bin:/usr/bin:/bin`
     ];
 
     if (process.env.FIREJAIL_EXTRA_ARGS) {
