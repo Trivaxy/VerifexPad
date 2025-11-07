@@ -97,7 +97,9 @@ async function isCompilerReady() {
     return true;
   }
   return artifactsExist(FRAMEWORK_DEPENDENT_ARTIFACTS);
-}\r\n\r\nasync function bootstrapCompiler() {
+}
+
+async function bootstrapCompiler() {
   await fsp.rm(compilerDir, { recursive: true, force: true });
   await fsp.mkdir(compilerDir, { recursive: true });
   await fsp.rm(buildDir, { recursive: true, force: true });
