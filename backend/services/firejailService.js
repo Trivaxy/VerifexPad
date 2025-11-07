@@ -52,6 +52,14 @@ class FirejailService {
   async runInSandbox(programPath) {
     const { compilerDir, entryPoint, selfContained, dotnetRoot } =
       compilerManager.getCompilerPaths();
+    
+    // Diagnostic logging
+    console.log('[firejail] Compiler directory:', compilerDir);
+    console.log('[firejail] Entry point:', entryPoint);
+    console.log('[firejail] Self-contained:', selfContained);
+    console.log('[firejail] Dotnet root:', dotnetRoot);
+    console.log('[firejail] Program path:', programPath);
+    
     const firejailArgs = [
       '--quiet',
       '--net=none',
@@ -80,6 +88,7 @@ class FirejailService {
       firejailArgs.push('dotnet', entryPoint, programPath);
     }
 
+    console.log('[firejail] Full command:', FIREJAIL_CMD, firejailArgs.join(' '));
     return spawnWithTimeout(FIREJAIL_CMD, firejailArgs, SANDBOX_TIMEOUT_MS);
   }
 
