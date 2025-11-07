@@ -63,18 +63,18 @@ class FirejailService {
       '--net=none',
       '--caps.drop=all',
       '--noroot',
-      // Filesystem isolation
-      '--private-tmp',
+      // Isolated /dev and /tmp
       '--private-dev',
-      // Whitelist necessary paths
+      '--private-tmp',
+      // Whitelist only necessary directories
       `--whitelist=${compilerDir}`,
       `--whitelist=${sessionDir}`,
-      // Blacklist sensitive system directories
+      // Blacklist sensitive directories (excluding /home since compiler is there)
       '--blacklist=/boot',
       '--blacklist=/root',
-      '--blacklist=/home',
-      '--read-only=/etc',
-      '--read-only=/usr',
+      '--blacklist=/opt',
+      '--blacklist=/media',
+      '--blacklist=/mnt',
       // Timeout protection
       `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000).toString().padStart(2, '0')}`,
       // Environment variables
