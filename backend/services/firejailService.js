@@ -66,9 +66,13 @@ class FirejailService {
       '--private-dev',
       '--caps.drop=all',
       '--noroot',
-      // Whitelist only necessary paths
+      // Whitelist compiler directory and session
       `--whitelist=${compilerDir}`,
       `--whitelist=${sessionDir}`,
+      // System libraries needed for dynamic binaries
+      '--whitelist=/lib',
+      '--whitelist=/lib64',
+      '--whitelist=/usr/lib',
       // Timeout protection
       `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000).toString().padStart(2, '0')}`,
       // Environment variables
