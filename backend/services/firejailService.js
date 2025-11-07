@@ -52,23 +52,73 @@ class FirejailService {
   async runInSandbox(programPath) {
     const { compilerDir, entryPoint, selfContained, dotnetRoot } =
       compilerManager.getCompilerPaths();
-    
+
     // Get session directory from program path
     const sessionDir = path.dirname(programPath);
     const sessionName = path.basename(sessionDir);
-    
-    // With --private=compilerDir, that directory becomes the user's home
-    // Paths inside the jail are relative to the new home directory
+
+    // Prepare an ephemeral per-session home inside the compiler dir
+    // to avoid mutating persistent artifacts.
     const os = require('os');
     const username = os.userInfo().username;
-    const jailHomeBase = process.platform === 'win32' ? '/home/' + username : '/home/' + username;
-    
+    const jailHomeBase = '/home/' + username;
+    const jailHomeOutside = await fsp.mkdtemp(
+      path.join(compilerDir, 'jail-home-')
+    );
+
+    // Layout inside the jail home
+    const jailSessionsOutside = path.join(jailHomeOutside, 'sessions', sessionName);
+    const jailEntryPointOutside = path.join(
+      jailHomeOutside,
+      path.basename(entryPoint)
+    );
+    const jailZ3Outside = path.join(jailHomeOutside, 'libz3.so');
+    const jailDotnetOutside = path.join(jailHomeOutside, 'dotnet');
+    const jailExtractOutside = path.join(jailSessionsOutside, '.net-extract');
+
+    // Ensure directories exist
+    await fsp.mkdir(jailSessionsOutside, { recursive: true });
+    await fsp.mkdir(jailExtractOutside, { recursive: true });
+
+    // Copy program file into jail sessions dir
+    const programDest = path.join(jailSessionsOutside, 'program.vfx');
+    await fsp.copyFile(programPath, programDest);
+
+    // Copy required artifacts into the jail home
+    await fsp.copyFile(entryPoint, jailEntryPointOutside);
+    // libz3.so is optional but usually present
+    try {
+      await fsp.copyFile(path.join(compilerDir, 'libz3.so'), jailZ3Outside);
+    } catch {}
+    if (dotnetRoot) {
+      // Copy bundled dotnet runtime if present
+      await fsp.cp(dotnetRoot, jailDotnetOutside, { recursive: true });
+    }
+
+    // Make artifacts read-only where possible
+    try {
+      await fsp.chmod(jailEntryPointOutside, 0o555);
+      try { await fsp.chmod(jailZ3Outside, 0o444); } catch {}
+      try { await fsp.chmod(jailDotnetOutside, 0o555); } catch {}
+    } catch {}
+
+    // Paths as seen inside the jail (HOME is mounted at /home/<username>)
     const jailEntryPoint = path.join(jailHomeBase, path.basename(entryPoint));
     const jailDllPath = path.join(jailHomeBase, path.basename(entryPoint));
-    const jailProgramPath = path.join(jailHomeBase, 'sessions', sessionName, 'program.vfx');
+    const jailProgramPath = path.join(
+      jailHomeBase,
+      'sessions',
+      sessionName,
+      'program.vfx'
+    );
     const jailDotnetRoot = path.join(jailHomeBase, 'dotnet');
-    const jailExtractDir = path.join(jailHomeBase, 'sessions', sessionName, '.net-extract');
-    
+    const jailExtractDir = path.join(
+      jailHomeBase,
+      'sessions',
+      sessionName,
+      '.net-extract'
+    );
+
     const firejailArgs = [
       '--noprofile',
       '--quiet',
@@ -77,18 +127,32 @@ class FirejailService {
       '--caps.drop=all',
       '--nonewprivs',
       '--seccomp',
-      // Mount compiler directory as sandboxed home (avoids whitelist issues)
-      `--private=${compilerDir}`,
+      '--private-proc',
+      '--nogroups',
+      '--nosound',
+      '--no3d',
+      '--x11=none',
+      '--dbus-user=none',
+      // Mount per-session home as sandboxed HOME
+      `--private=${jailHomeOutside}`,
       '--private-dev',
       '--private-tmp',
       '--private-etc=hosts,hostname,resolv.conf',
-      // Timeout protection
-      `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000).toString().padStart(2, '0')}`,
+      // Resource ceilings
+      '--rlimit-as=512M',
+      '--rlimit-fsize=16M',
+      '--rlimit-nproc=128',
+      '--rlimit-nofile=256',
+      '--rlimit-cpu=2',
+      // Timeout protection (defense in depth with Node's timer)
+      `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000)
+        .toString()
+        .padStart(2, '0')}`,
       // Environment variables
       `--env=LD_LIBRARY_PATH=${jailHomeBase}`,
       `--env=DOTNET_ROOT=${jailDotnetRoot}`,
       `--env=DOTNET_BUNDLE_EXTRACT_BASE_DIR=${jailExtractDir}`,
-      `--env=PATH=${jailDotnetRoot}:/usr/local/bin:/usr/bin:/bin`
+      `--env=PATH=${selfContained ? '' : `${jailDotnetRoot}:/usr/local/bin:/usr/bin:/bin`}`
     ];
 
     if (process.env.FIREJAIL_EXTRA_ARGS) {
@@ -103,7 +167,16 @@ class FirejailService {
       firejailArgs.push('dotnet', jailDllPath, jailProgramPath);
     }
 
-    return spawnWithTimeout(FIREJAIL_CMD, firejailArgs, SANDBOX_TIMEOUT_MS);
+    try {
+      return await spawnWithTimeout(
+        FIREJAIL_CMD,
+        firejailArgs,
+        SANDBOX_TIMEOUT_MS
+      );
+    } finally {
+      // Clean up the ephemeral jail home regardless of outcome
+      await fsp.rm(jailHomeOutside, { recursive: true, force: true });
+    }
   }
 
   async simulateCompileAndRun(code) {
@@ -152,6 +225,7 @@ function spawnWithTimeout(command, args, timeoutMs) {
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let killTimer = null;
 
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
@@ -166,16 +240,23 @@ function spawnWithTimeout(command, args, timeoutMs) {
 
     const timer = setTimeout(() => {
       timedOut = true;
+      // Try graceful termination first
       child.kill('SIGTERM');
+      // Hard kill if it doesn't exit quickly
+      killTimer = setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch {}
+      }, 750);
     }, timeoutMs);
 
     child.on('error', (err) => {
       clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
       reject(err);
     });
 
     child.on('close', (code) => {
       clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
       if (timedOut) {
         reject({ type: 'timeout', stdout, stderr });
       } else if (code === 0) {
