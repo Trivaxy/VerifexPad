@@ -57,20 +57,20 @@ class FirejailService {
     const sessionDir = path.dirname(programPath);
     
     const firejailArgs = [
+      '--noprofile',
       '--quiet',
-      // Network and capability restrictions
+      // Complete isolation
       '--net=none',
+      '--private',
+      '--private-tmp',
+      '--private-dev',
       '--caps.drop=all',
       '--noroot',
-      // Filesystem isolation - private /dev, /tmp, and strict whitelisting
-      '--private-dev',
-      '--private-tmp',
-      '--private',
-      // Whitelist only necessary directories (compiler and session)
+      // Whitelist only necessary paths
       `--whitelist=${compilerDir}`,
       `--whitelist=${sessionDir}`,
-      // Seccomp filtering for additional syscall restrictions
-      '--seccomp',
+      // Timeout protection
+      `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000).toString().padStart(2, '0')}`,
       // Environment variables
       `--env=LD_LIBRARY_PATH=${compilerDir}`
     ];
