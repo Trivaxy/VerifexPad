@@ -95,11 +95,10 @@ class FirejailService {
       await fsp.cp(dotnetRoot, jailDotnetOutside, { recursive: true });
     }
 
-    // Make artifacts read-only where possible
+    // Make critical artifacts read-only where possible (leave dotnet dir writable for cleanup)
     try {
       await fsp.chmod(jailEntryPointOutside, 0o555);
       try { await fsp.chmod(jailZ3Outside, 0o444); } catch {}
-      try { await fsp.chmod(jailDotnetOutside, 0o555); } catch {}
     } catch {}
 
     // Paths as seen inside the jail (HOME is mounted at /home/<username>)
