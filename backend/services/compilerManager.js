@@ -21,7 +21,7 @@ const EXECUTABLE_NAME =
 const SHOULD_BUNDLE_DOTNET =
   process.env.VERIFEX_BUNDLE_DOTNET_RUNTIME !== 'false' &&
   process.platform === 'linux';
-const COMPILER_SCHEMA_VERSION = '2';
+const COMPILER_SCHEMA_VERSION = '3';
 const VERSION_FILENAME = '.verifexpad-version';
 const DOTNET_DIRNAME = 'dotnet';
 const DOTNET_BINARY_NAME = process.platform === 'win32' ? 'dotnet.exe' : 'dotnet';
@@ -29,16 +29,20 @@ const DOTNET_BINARY_NAME = process.platform === 'win32' ? 'dotnet.exe' : 'dotnet
 const compilerDir = path.join(process.cwd(), 'compiler');
 const buildDir = path.join(compilerDir, '.build');
 const dotnetRelativeBinary = path.join(DOTNET_DIRNAME, DOTNET_BINARY_NAME);
+const dotnetFxrPath = path.join(DOTNET_DIRNAME, 'host', 'fxr');
+const dotnetRequiredPaths =
+  SHOULD_BUNDLE_DOTNET ? [dotnetRelativeBinary, dotnetFxrPath] : [];
 const SINGLE_FILE_ARTIFACTS = [
   EXECUTABLE_NAME,
   'libz3.so',
-  ...(SHOULD_BUNDLE_DOTNET ? [dotnetRelativeBinary] : []),
+  ...dotnetRequiredPaths,
   VERSION_FILENAME
 ];
 const FRAMEWORK_DEPENDENT_ARTIFACTS = [
   'Verifex.dll',
   'Verifex.runtimeconfig.json',
   'libz3.so',
+  ...dotnetRequiredPaths,
   VERSION_FILENAME
 ];
 
@@ -140,10 +144,12 @@ async function installDotnetRuntime() {
 
   const dotnetRoot = path.join(compilerDir, DOTNET_DIRNAME);
   await fsp.mkdir(dotnetRoot, { recursive: true });
-  await run('tar', ['-xzf', tarPath, '-C', dotnetRoot]);
+  const tarArgs = ['-xzf', tarPath, '-C', dotnetRoot, '--strip-components=1'];
+  await run('tar', tarArgs);
 
   const dotnetBinary = path.join(dotnetRoot, DOTNET_BINARY_NAME);
   await fsp.chmod(dotnetBinary, 0o755);
+  await fsp.access(path.join(dotnetRoot, 'host', 'fxr'), fs.constants.R_OK);
 }
 
 async function patchUpstreamCompiler(repoDir) {
