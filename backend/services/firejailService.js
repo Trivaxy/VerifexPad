@@ -139,7 +139,7 @@ class FirejailService {
       '--private-etc=hosts,hostname,resolv.conf',
       // Resource ceilings
       '--rlimit-as=512m',
-      '--rlimit-fsize=16m',
+      '--rlimit-fsize=512m',
       '--rlimit-nproc=128',
       '--rlimit-nofile=256',
       '--rlimit-cpu=2',
