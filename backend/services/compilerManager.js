@@ -9,10 +9,16 @@ const VERIFEX_VERSION = process.env.VERIFEX_VERSION || 'master';
 const Z3_DOWNLOAD_URL =
   process.env.Z3_DOWNLOAD_URL ||
   'https://github.com/Z3Prover/z3/releases/download/z3-4.12.2/z3-4.12.2-x64-glibc-2.31.zip';
+const DEFAULT_RUNTIME_ID =
+  process.env.VERIFEX_RUNTIME_ID || 'linux-x64';
+const EXECUTABLE_NAME =
+  process.env.VERIFEX_BINARY_NAME ||
+  (DEFAULT_RUNTIME_ID.toLowerCase().startsWith('win') ? 'Verifex.exe' : 'Verifex');
 
 const compilerDir = path.join(process.cwd(), 'compiler');
 const buildDir = path.join(compilerDir, '.build');
-const requiredArtifacts = [
+const SINGLE_FILE_ARTIFACTS = [EXECUTABLE_NAME, 'libz3.so'];
+const FRAMEWORK_DEPENDENT_ARTIFACTS = [
   'Verifex.dll',
   'Verifex.runtimeconfig.json',
   'libz3.so'
@@ -40,10 +46,10 @@ async function internalEnsure() {
   console.log('[compiler] Compiler ready.');
 }
 
-async function isCompilerReady() {
+async function artifactsExist(artifacts) {
   try {
     await Promise.all(
-      requiredArtifacts.map((name) =>
+      artifacts.map((name) =>
         fsp.access(path.join(compilerDir, name), fs.constants.R_OK)
       )
     );
@@ -51,6 +57,13 @@ async function isCompilerReady() {
   } catch {
     return false;
   }
+}
+
+async function isCompilerReady() {
+  if (await artifactsExist(SINGLE_FILE_ARTIFACTS)) {
+    return true;
+  }
+  return artifactsExist(FRAMEWORK_DEPENDENT_ARTIFACTS);
 }
 
 async function bootstrapCompiler() {
@@ -63,7 +76,19 @@ async function bootstrapCompiler() {
   await run('git', ['clone', '--branch', VERIFEX_VERSION, '--depth', '1', COMPILER_REPO, repoDir]);
 
   const csprojPath = path.join(repoDir, 'Verifex', 'Verifex.csproj');
-  await run('dotnet', ['publish', csprojPath, '-c', 'Release', '-o', compilerDir]);
+  await run('dotnet', [
+    'publish',
+    csprojPath,
+    '-c',
+    'Release',
+    '-r',
+    DEFAULT_RUNTIME_ID,
+    '--self-contained',
+    'true',
+    '-p:PublishSingleFile=true',
+    '-o',
+    compilerDir
+  ]);
 
   await installZ3();
 
@@ -107,9 +132,19 @@ function run(command, args, options = {}) {
 }
 
 function getCompilerPaths() {
+  const singleBinaryPath = path.join(compilerDir, EXECUTABLE_NAME);
+  if (fs.existsSync(singleBinaryPath)) {
+    return {
+      compilerDir,
+      entryPoint: singleBinaryPath,
+      selfContained: true
+    };
+  }
+
   return {
     compilerDir,
-    entryPoint: path.join(compilerDir, 'Verifex.dll')
+    entryPoint: path.join(compilerDir, 'Verifex.dll'),
+    selfContained: false
   };
 }
 

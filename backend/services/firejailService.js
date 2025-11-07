@@ -48,7 +48,8 @@ class FirejailService {
   }
 
   async runInSandbox(programPath) {
-    const { compilerDir, entryPoint } = compilerManager.getCompilerPaths();
+    const { compilerDir, entryPoint, selfContained } =
+      compilerManager.getCompilerPaths();
     const firejailArgs = [
       '--quiet',
       '--net=none',
@@ -63,7 +64,11 @@ class FirejailService {
       );
     }
 
-    firejailArgs.push('dotnet', entryPoint, programPath);
+    if (selfContained) {
+      firejailArgs.push(entryPoint, programPath);
+    } else {
+      firejailArgs.push('dotnet', entryPoint, programPath);
+    }
 
     return spawnWithTimeout(FIREJAIL_CMD, firejailArgs, SANDBOX_TIMEOUT_MS);
   }
