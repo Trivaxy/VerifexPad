@@ -59,20 +59,22 @@ class FirejailService {
     const firejailArgs = [
       '--noprofile',
       '--quiet',
-      // Complete isolation
+      // Network and privilege restrictions
       '--net=none',
-      '--private',
-      '--private-tmp',
-      '--private-dev',
       '--caps.drop=all',
       '--noroot',
-      // Whitelist compiler directory and session
+      // Filesystem isolation
+      '--private-tmp',
+      '--private-dev',
+      // Whitelist necessary paths
       `--whitelist=${compilerDir}`,
       `--whitelist=${sessionDir}`,
-      // System libraries needed for dynamic binaries
-      '--whitelist=/lib',
-      '--whitelist=/lib64',
-      '--whitelist=/usr/lib',
+      // Blacklist sensitive system directories
+      '--blacklist=/boot',
+      '--blacklist=/root',
+      '--blacklist=/home',
+      '--read-only=/etc',
+      '--read-only=/usr',
       // Timeout protection
       `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000).toString().padStart(2, '0')}`,
       // Environment variables
