@@ -9,15 +9,28 @@ const VERIFEX_VERSION = process.env.VERIFEX_VERSION || 'master';
 const Z3_DOWNLOAD_URL =
   process.env.Z3_DOWNLOAD_URL ||
   'https://github.com/Z3Prover/z3/releases/download/z3-4.12.2/z3-4.12.2-x64-glibc-2.31.zip';
+const DOTNET_RUNTIME_URL =
+  process.env.DOTNET_RUNTIME_URL ||
+  'https://dotnetcli.azureedge.net/dotnet/Runtime/9.0.0/dotnet-runtime-9.0.0-linux-x64.tar.gz';
 const DEFAULT_RUNTIME_ID =
   process.env.VERIFEX_RUNTIME_ID || 'linux-x64';
 const EXECUTABLE_NAME =
   process.env.VERIFEX_BINARY_NAME ||
   (DEFAULT_RUNTIME_ID.toLowerCase().startsWith('win') ? 'Verifex.exe' : 'Verifex');
+const SHOULD_BUNDLE_DOTNET =
+  process.env.VERIFEX_BUNDLE_DOTNET_RUNTIME !== 'false' &&
+  process.platform === 'linux';
+const DOTNET_DIRNAME = 'dotnet';
+const DOTNET_BINARY_NAME = process.platform === 'win32' ? 'dotnet.exe' : 'dotnet';
 
 const compilerDir = path.join(process.cwd(), 'compiler');
 const buildDir = path.join(compilerDir, '.build');
-const SINGLE_FILE_ARTIFACTS = [EXECUTABLE_NAME, 'libz3.so'];
+const dotnetRelativeBinary = path.join(DOTNET_DIRNAME, DOTNET_BINARY_NAME);
+const SINGLE_FILE_ARTIFACTS = [
+  EXECUTABLE_NAME,
+  'libz3.so',
+  ...(SHOULD_BUNDLE_DOTNET ? [dotnetRelativeBinary] : [])
+];
 const FRAMEWORK_DEPENDENT_ARTIFACTS = [
   'Verifex.dll',
   'Verifex.runtimeconfig.json',
@@ -91,6 +104,9 @@ async function bootstrapCompiler() {
   ]);
 
   await installZ3();
+  if (SHOULD_BUNDLE_DOTNET) {
+    await installDotnetRuntime();
+  }
 
   await fsp.rm(buildDir, { recursive: true, force: true });
 }
@@ -105,6 +121,18 @@ async function installZ3() {
   const libPath = path.join(extractedDir, 'bin', 'libz3.so');
 
   await fsp.copyFile(libPath, path.join(compilerDir, 'libz3.so'));
+}
+
+async function installDotnetRuntime() {
+  const tarPath = path.join(buildDir, 'dotnet-runtime.tar.gz');
+  await run('wget', [DOTNET_RUNTIME_URL, '-O', tarPath]);
+
+  const dotnetRoot = path.join(compilerDir, DOTNET_DIRNAME);
+  await fsp.mkdir(dotnetRoot, { recursive: true });
+  await run('tar', ['-xzf', tarPath, '-C', dotnetRoot]);
+
+  const dotnetBinary = path.join(dotnetRoot, DOTNET_BINARY_NAME);
+  await fsp.chmod(dotnetBinary, 0o755);
 }
 
 function run(command, args, options = {}) {
@@ -133,18 +161,24 @@ function run(command, args, options = {}) {
 
 function getCompilerPaths() {
   const singleBinaryPath = path.join(compilerDir, EXECUTABLE_NAME);
+  const dotnetRoot = SHOULD_BUNDLE_DOTNET
+    ? path.join(compilerDir, DOTNET_DIRNAME)
+    : null;
+
   if (fs.existsSync(singleBinaryPath)) {
     return {
       compilerDir,
       entryPoint: singleBinaryPath,
-      selfContained: true
+      selfContained: true,
+      dotnetRoot
     };
   }
 
   return {
     compilerDir,
     entryPoint: path.join(compilerDir, 'Verifex.dll'),
-    selfContained: false
+    selfContained: false,
+    dotnetRoot
   };
 }
 

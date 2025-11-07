@@ -50,7 +50,7 @@ class FirejailService {
   }
 
   async runInSandbox(programPath) {
-    const { compilerDir, entryPoint, selfContained } =
+    const { compilerDir, entryPoint, selfContained, dotnetRoot } =
       compilerManager.getCompilerPaths();
     const firejailArgs = [
       '--quiet',
@@ -59,6 +59,14 @@ class FirejailService {
       '--caps.drop=all',
       `--env=LD_LIBRARY_PATH=${compilerDir}`
     ];
+
+    if (dotnetRoot) {
+      firejailArgs.push(`--env=DOTNET_ROOT=${dotnetRoot}`);
+      const pathValue = [dotnetRoot, process.env.PATH || '']
+        .filter(Boolean)
+        .join(':');
+      firejailArgs.push(`--env=PATH=${pathValue}`);
+    }
 
     if (process.env.FIREJAIL_EXTRA_ARGS) {
       firejailArgs.push(
