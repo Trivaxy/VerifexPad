@@ -60,13 +60,17 @@ class FirejailService {
     console.log('[firejail] Dotnet root:', dotnetRoot);
     console.log('[firejail] Program path:', programPath);
     
+    // Get session directory from program path
+    const sessionDir = path.dirname(programPath);
+    
     const firejailArgs = [
       '--quiet',
       '--net=none',
-      '--private-tmp',
       '--caps.drop=all',
-      // Whitelist compiler directory for read-only access (contains Verifex binary, libz3.so, dotnet runtime)
-      `--read-only=${compilerDir}`,
+      // Whitelist compiler directory (needed for Verifex binary, dotnet runtime, libz3.so)
+      `--whitelist=${compilerDir}`,
+      // Session directory needs read-write access for input/output files
+      `--whitelist=${sessionDir}`,
       `--env=LD_LIBRARY_PATH=${compilerDir}`
     ];
 
