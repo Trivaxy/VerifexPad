@@ -144,7 +144,7 @@ class FirejailService {
       '--private-tmp',
       '--private-etc=hosts,hostname,resolv.conf',
       // Resource ceilings (configurable)
-      `--rlimit-as=${RLIMIT_AS}`,
+    //  `--rlimit-as=${RLIMIT_AS}`,
     //  `--rlimit-fsize=${RLIMIT_FSIZE}`,
       `--rlimit-nproc=${RLIMIT_NPROC}`,
       `--rlimit-nofile=${RLIMIT_NOFILE}`,
