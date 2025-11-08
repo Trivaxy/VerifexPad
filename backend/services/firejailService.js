@@ -112,9 +112,10 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
 
   const dotnetBinary = locateDotnetBinary(compilerPaths);
   const dotnetCommandName = path.basename(dotnetBinary);
-  const privateBinTarget = path.isAbsolute(dotnetBinary)
-    ? dotnetBinary
-    : dotnetCommandName;
+  const privateBinTargets = new Set([dotnetCommandName]);
+  if (path.isAbsolute(dotnetBinary)) {
+    privateBinTargets.add(path.dirname(dotnetBinary));
+  }
 
   const firejailArgs = [
     '--quiet',
@@ -126,7 +127,7 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
     '--seccomp',
     '--caps.drop=all',
     '--restrict-namespaces',
-    `--private-bin=${privateBinTarget}`,
+    ...Array.from(privateBinTargets).map((target) => `--private-bin=${target}`),
     '--private-etc=localtime,passwd,group,nsswitch.conf',
     `--whitelist=${runDir}`,
     `--read-only=${runDir}`,
