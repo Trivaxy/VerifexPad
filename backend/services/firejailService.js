@@ -111,14 +111,7 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
   await assertPathExists(assemblyPath);
   await assertPathExists(runtimeConfigPath);
 
-  const homeDotnetPath = path.join(os.homedir(), '.dotnet', DOTNET_BINARY_NAME);
-  if (!(await pathExists(homeDotnetPath))) {
-    throw new Error(
-      `Unable to find ${homeDotnetPath}. Install dotnet to ~/.dotnet or set DOTNET_BINARY_PATH inside your home directory.`
-    );
-  }
-
-  const dotnetBinary = homeDotnetPath;
+  const { dotnetBinary, sharedPaths } = await resolveDotnetRuntime(compilerPaths);
 
   const firejailArgs = [
     '--quiet',
@@ -130,10 +123,11 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
     '--seccomp',
     '--caps.drop=all',
     '--restrict-namespaces',
-    '--private-home=.dotnet',
     '--private-etc=localtime,passwd,group,nsswitch.conf',
-    `--whitelist=${runDir}`,
-    `--read-only=${runDir}`,
+    ...expandReadonlyMounts([runDir, ...sharedPaths]),
+    '--noexec=/bin',
+    '--noexec=/usr/bin',
+    '--noexec=/usr/local/bin',
     ...FIREJAIL_EXTRA_ARGS
   ];
 
@@ -148,13 +142,47 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
   ];
 
   const env = { ...process.env };
-  if (compilerPaths.dotnetRoot) {
-    env.PATH = `${compilerPaths.dotnetRoot}:${process.env.PATH || ''}`;
-    env.DOTNET_ROOT = compilerPaths.dotnetRoot;
-  }
+  const dotnetRoot = path.dirname(dotnetBinary);
+  env.DOTNET_ROOT = compilerPaths.dotnetRoot || dotnetRoot;
 
   const { stdout, stderr } = await runProcess('timeout', timeoutArgs, { env });
   return formatOutput([stdout, stderr]);
+}
+
+async function resolveDotnetRuntime(compilerPaths) {
+  const candidateRoots = [];
+
+  if (compilerPaths.dotnetRoot) {
+    candidateRoots.push(compilerPaths.dotnetRoot);
+  }
+
+  candidateRoots.push(path.join(os.homedir(), '.dotnet'));
+
+  for (const root of candidateRoots) {
+    const binaryPath = path.join(root, DOTNET_BINARY_NAME);
+    if (await pathExists(binaryPath)) {
+      return {
+        dotnetBinary: binaryPath,
+        sharedPaths: [root]
+      };
+    }
+  }
+
+  throw new Error(
+    `Unable to find a dotnet runtime. Install dotnet to ~/.dotnet or ensure compiler artifacts include a bundled runtime.`
+  );
+}
+
+function expandReadonlyMounts(paths) {
+  const uniquePaths = Array.from(
+    new Set(
+      paths
+        .filter(Boolean)
+        .map((dirPath) => path.resolve(dirPath))
+    )
+  );
+
+  return uniquePaths.flatMap((dirPath) => [`--whitelist=${dirPath}`, `--read-only=${dirPath}`]);
 }
 
 async function ensureAssemblyArtifacts(runDir) {
