@@ -13,6 +13,7 @@ const DOTNET_RUNTIME_URL =
   process.env.DOTNET_RUNTIME_URL ||
   'https://dotnetcli.azureedge.net/dotnet/Runtime/9.0.0/dotnet-runtime-9.0.0-linux-x64.tar.gz';
 const OUTPUT_PATCH_MARKER = '// VerifexPad output forwarding patch';
+const EXECUTION_PATCH_MARKER = '// VerifexPad execution skip patch';
 const DEFAULT_RUNTIME_ID =
   process.env.VERIFEX_RUNTIME_ID || 'linux-x64';
 const EXECUTABLE_NAME =
@@ -166,9 +167,33 @@ async function installDotnetRuntime() {
 async function patchUpstreamCompiler(repoDir) {
   const programPath = path.join(repoDir, 'Verifex', 'Program.cs');
   let contents = await fsp.readFile(programPath, 'utf8');
+  let updated = contents;
+  let patched = false;
 
+  const outputPatch = applyOutputForwardingPatch(updated);
+  updated = outputPatch.updated;
+  patched = patched || outputPatch.changed;
+
+  const executionPatch = applyExecutionSkipPatch(updated);
+  updated = executionPatch.updated;
+  patched = patched || executionPatch.changed;
+
+  if (patched) {
+    await fsp.writeFile(programPath, updated, 'utf8');
+  }
+
+  if (outputPatch.changed) {
+    console.log('[compiler] Applied Verifex output forwarding patch.');
+  }
+
+  if (executionPatch.changed) {
+    console.log('[compiler] Applied Verifex execution control patch.');
+  }
+}
+
+function applyOutputForwardingPatch(contents) {
   if (contents.includes(OUTPUT_PATCH_MARKER)) {
-    return;
+    return { updated: contents, changed: false };
   }
 
   const needle =
@@ -193,8 +218,38 @@ async function patchUpstreamCompiler(repoDir) {
     throw new Error('Failed to apply output forwarding patch');
   }
 
-  await fsp.writeFile(programPath, updated, 'utf8');
-  console.log('[compiler] Applied Verifex output forwarding patch.');
+  return { updated, changed: true };
+}
+
+function applyExecutionSkipPatch(contents) {
+  if (contents.includes(EXECUTION_PATCH_MARKER)) {
+    return { updated: contents, changed: false };
+  }
+
+  const runNeedle = 'Console.WriteLine("Running...");';
+
+  if (!contents.includes(runNeedle)) {
+    throw new Error('Unable to locate execution patch insertion point');
+  }
+
+  const replacement = [
+    'var skipExecutionEnv = Environment.GetEnvironmentVariable("VERIFEXPAD_SKIP_EXECUTION");',
+    'if (!string.IsNullOrEmpty(skipExecutionEnv) && skipExecutionEnv != "0")',
+    '{',
+    '    return;',
+    `    ${EXECUTION_PATCH_MARKER}`,
+    '}',
+    '',
+    runNeedle
+  ].join('\n');
+
+  const updated = contents.replace(runNeedle, replacement);
+
+  if (updated === contents) {
+    throw new Error('Failed to apply execution skip patch');
+  }
+
+  return { updated, changed: true };
 }
 
 function run(command, args, options = {}) {
