@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const compilerManager = require('./compilerManager');
 
-const RUN_ROOT = '/run';
+const RUN_ROOT = path.join(process.cwd(), 'run');
 const SOURCE_FILENAME = 'Program.vx';
 const ASSEMBLY_FILENAME = 'Program.dll';
 const RUNTIME_CONFIG_FILENAME = 'Program.runtimeconfig.json';
