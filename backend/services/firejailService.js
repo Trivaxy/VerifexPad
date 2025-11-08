@@ -154,7 +154,6 @@ class FirejailService {
         .toString()
         .padStart(2, '0')}`,
       // Environment variables
-      `--chdir=${jailHomeBase}`,
       `--env=HOME=${jailHomeBase}`,
       `--env=LD_LIBRARY_PATH=${jailHomeBase}`,
       `--env=DOTNET_ROOT=${jailDotnetRoot}`,
