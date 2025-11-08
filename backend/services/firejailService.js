@@ -1,6 +1,7 @@
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const compilerManager = require('./compilerManager');
@@ -110,12 +111,14 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
   await assertPathExists(assemblyPath);
   await assertPathExists(runtimeConfigPath);
 
-  const dotnetBinary = locateDotnetBinary(compilerPaths);
-  const dotnetCommandName = path.basename(dotnetBinary);
-  const privateBinTargets = new Set([dotnetCommandName]);
-  if (path.isAbsolute(dotnetBinary)) {
-    privateBinTargets.add(path.dirname(dotnetBinary));
+  const homeDotnetPath = path.join(os.homedir(), '.dotnet', DOTNET_BINARY_NAME);
+  if (!(await pathExists(homeDotnetPath))) {
+    throw new Error(
+      `Unable to find ${homeDotnetPath}. Install dotnet to ~/.dotnet or set DOTNET_BINARY_PATH inside your home directory.`
+    );
   }
+
+  const dotnetBinary = homeDotnetPath;
 
   const firejailArgs = [
     '--quiet',
@@ -127,7 +130,7 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
     '--seccomp',
     '--caps.drop=all',
     '--restrict-namespaces',
-    ...Array.from(privateBinTargets).map((target) => `--private-bin=${target}`),
+    '--private-home=.dotnet',
     '--private-etc=localtime,passwd,group,nsswitch.conf',
     `--whitelist=${runDir}`,
     `--read-only=${runDir}`,
