@@ -110,8 +110,11 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
   await assertPathExists(assemblyPath);
   await assertPathExists(runtimeConfigPath);
 
-  const dotnetBinary = process.env.DOTNET_BINARY_PATH || DOTNET_BINARY_NAME;
+  const dotnetBinary = locateDotnetBinary(compilerPaths);
   const dotnetCommandName = path.basename(dotnetBinary);
+  const privateBinTarget = path.isAbsolute(dotnetBinary)
+    ? dotnetBinary
+    : dotnetCommandName;
 
   const firejailArgs = [
     '--quiet',
@@ -123,7 +126,7 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
     '--seccomp',
     '--caps.drop=all',
     '--restrict-namespaces',
-    `--private-bin=${dotnetCommandName}`,
+    `--private-bin=${privateBinTarget}`,
     '--private-etc=localtime,passwd,group,nsswitch.conf',
     `--whitelist=${runDir}`,
     `--read-only=${runDir}`,
