@@ -65,12 +65,10 @@ class FirejailService {
 
     // Prepare an ephemeral per-session home inside the compiler dir
     // to avoid mutating persistent artifacts.
-    const os = require('os');
-    const username = os.userInfo().username;
-    const jailHomeBase = '/home/' + username;
     const jailHomeOutside = await fsp.mkdtemp(
       path.join(compilerDir, 'jail-home-')
     );
+    const jailHomeBase = jailHomeOutside;
 
     // Layout inside the jail home
     const jailSessionsOutside = path.join(jailHomeOutside, 'sessions', sessionName);
@@ -107,7 +105,7 @@ class FirejailService {
       try { await fsp.chmod(jailZ3Outside, 0o444); } catch {}
     } catch {}
 
-    // Paths as seen inside the jail (HOME is mounted at /home/<username>)
+    // Paths as seen inside the jail (HOME is explicitly set to jailHomeBase)
     const jailEntryPoint = path.join(jailHomeBase, path.basename(entryPoint));
     const jailDllPath = path.join(jailHomeBase, path.basename(entryPoint));
     const jailProgramPath = path.join(
@@ -154,6 +152,7 @@ class FirejailService {
         .toString()
         .padStart(2, '0')}`,
       // Environment variables
+      `--env=HOME=${jailHomeBase}`,
       `--env=LD_LIBRARY_PATH=${jailHomeBase}`,
       `--env=DOTNET_ROOT=${jailDotnetRoot}`,
       `--env=DOTNET_BUNDLE_EXTRACT_BASE_DIR=${jailExtractDir}`,
