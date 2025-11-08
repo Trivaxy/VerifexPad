@@ -9,6 +9,12 @@ const SANDBOX_TIMEOUT_MS = parseInt(
   process.env.SANDBOX_TIMEOUT_MS || '10000',
   10
 );
+// Tunable resource limits (use lowercase suffixes: k, m, g)
+const RLIMIT_AS = process.env.FIREJAIL_RLIMIT_AS || '512m';
+const RLIMIT_FSIZE = process.env.FIREJAIL_RLIMIT_FSIZE || '2g';
+const RLIMIT_NPROC = process.env.FIREJAIL_RLIMIT_NPROC || '128';
+const RLIMIT_NOFILE = process.env.FIREJAIL_RLIMIT_NOFILE || '256';
+const RLIMIT_CPU = process.env.FIREJAIL_RLIMIT_CPU || '2';
 
 class FirejailService {
   async compileAndRun(code) {
@@ -137,12 +143,12 @@ class FirejailService {
       '--private-dev',
       '--private-tmp',
       '--private-etc=hosts,hostname,resolv.conf',
-      // Resource ceilings
-      '--rlimit-as=512m',
-      '--rlimit-fsize=512m',
-      '--rlimit-nproc=128',
-      '--rlimit-nofile=256',
-      '--rlimit-cpu=2',
+      // Resource ceilings (configurable)
+      `--rlimit-as=${RLIMIT_AS}`,
+      `--rlimit-fsize=${RLIMIT_FSIZE}`,
+      `--rlimit-nproc=${RLIMIT_NPROC}`,
+      `--rlimit-nofile=${RLIMIT_NOFILE}`,
+      `--rlimit-cpu=${RLIMIT_CPU}`,
       // Timeout protection (defense in depth with Node's timer)
       `--timeout=00:00:${Math.ceil(SANDBOX_TIMEOUT_MS / 1000)
         .toString()
@@ -151,7 +157,7 @@ class FirejailService {
       `--env=LD_LIBRARY_PATH=${jailHomeBase}`,
       `--env=DOTNET_ROOT=${jailDotnetRoot}`,
       `--env=DOTNET_BUNDLE_EXTRACT_BASE_DIR=${jailExtractDir}`,
-      `--env=PATH=${selfContained ? '' : `${jailDotnetRoot}:/usr/local/bin:/usr/bin:/bin`}`
+      `--env=PATH=${selfContained ? '/usr/local/bin:/usr/bin:/bin' : `${jailDotnetRoot}:/usr/local/bin:/usr/bin:/bin`}`
     ];
 
     if (process.env.FIREJAIL_EXTRA_ARGS) {
