@@ -141,11 +141,10 @@ class FirejailService {
       '--dbus-user=none',
       // Mount per-session home as sandboxed HOME
       `--private=${jailHomeOutside}`,
+      `--private-cwd`,
       '--private-dev',
       '--private-tmp',
       '--private-etc=hosts,hostname,resolv.conf,passwd',
-      // Set working directory to user's home to avoid surprises
-      `--cd=${userHome}`,
       // Resource ceilings (configurable)
     //  `--rlimit-as=${RLIMIT_AS}`,
     //  `--rlimit-fsize=${RLIMIT_FSIZE}`,
