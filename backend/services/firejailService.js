@@ -1,6 +1,7 @@
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
+const os = require('os');
 const { spawn } = require('child_process');
 const compilerManager = require('./compilerManager');
 
@@ -122,6 +123,8 @@ class FirejailService {
       '.net-extract'
     );
 
+    const userHome = os.userInfo().homedir;
+
     const firejailArgs = [
       '--noprofile',
       '--quiet',
@@ -140,7 +143,9 @@ class FirejailService {
       `--private=${jailHomeOutside}`,
       '--private-dev',
       '--private-tmp',
-      '--private-etc=hosts,hostname,resolv.conf',
+      '--private-etc=hosts,hostname,resolv.conf,passwd',
+      // Set working directory to user's home to avoid surprises
+      `--cd=${userHome}`,
       // Resource ceilings (configurable)
     //  `--rlimit-as=${RLIMIT_AS}`,
     //  `--rlimit-fsize=${RLIMIT_FSIZE}`,
