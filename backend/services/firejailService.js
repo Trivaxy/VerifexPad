@@ -16,6 +16,8 @@ const FIREJAIL_EXTRA_ARGS = parseArgString(process.env.FIREJAIL_EXTRA_ARGS || ''
 const SANDBOX_TIMEOUT_MS = Number.parseInt(process.env.SANDBOX_TIMEOUT_MS || '', 10) || 10000;
 const SANDBOX_TIMEOUT_SECONDS = Math.max(1, Math.ceil(SANDBOX_TIMEOUT_MS / 1000));
 const SANDBOX_KILL_AFTER_SECONDS = 2;
+const COMPILER_TIMEOUT_SECONDS = 10;
+const COMPILER_KILL_AFTER_SECONDS = 2;
 
 async function compileAndRun(code) {
   const runId = generateRunId();
@@ -48,7 +50,9 @@ async function compileAndRun(code) {
     }
 
     let message = error.message || 'Failed to compile or run code';
-    if (error instanceof CommandError && error.exitCode === 124) {
+    if (error.timedOut) {
+      message = `Compiler timed out after ${COMPILER_TIMEOUT_SECONDS}s`;
+    } else if (error instanceof CommandError && error.exitCode === 124) {
       message = `Sandbox timed out after ${SANDBOX_TIMEOUT_SECONDS}s`;
     }
 
@@ -82,28 +86,19 @@ async function compileUserCode(code, runDir, compilerPaths) {
   const sourcePath = path.join(runDir, SOURCE_FILENAME);
   await fsp.writeFile(sourcePath, code, 'utf8');
 
-  const env = {
-    ...process.env,
-    VERIFEXPAD_SKIP_EXECUTION: '1'
-  };
+  const dotnetBinary = locateDotnetBinary(compilerPaths);
+  const env = buildCompilerEnv(runDir, compilerPaths);
 
-  const dotnetBinary = getDotnetBinary(compilerPaths);
-  if (dotnetBinary && compilerPaths.dotnetRoot) {
-    env.PATH = `${compilerPaths.dotnetRoot}:${process.env.PATH || ''}`;
-    env.DOTNET_ROOT = compilerPaths.dotnetRoot;
-  }
-
-  const command = compilerPaths.selfContained ? compilerPaths.entryPoint : dotnetBinary || DOTNET_BINARY_NAME;
-  const args = compilerPaths.selfContained
-    ? [sourcePath]
-    : [compilerPaths.entryPoint, sourcePath];
-
-  const { stdout, stderr } = await runProcess(command, args, {
-    cwd: compilerPaths.compilerDir,
+  const { stdout, stderr } = await runCompilerWithTimeout(
+    compilerPaths,
+    dotnetBinary,
+    sourcePath,
+    runDir,
     env
-  });
+  );
 
   await ensureAssemblyArtifacts(runDir);
+  await ensureRuntimeConfig(runDir);
 
   return { compileOutput: formatOutput([stdout, stderr]) };
 }
@@ -115,7 +110,8 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
   await assertPathExists(assemblyPath);
   await assertPathExists(runtimeConfigPath);
 
-  const dotnetBinary = getDotnetBinary(compilerPaths) || DOTNET_BINARY_NAME;
+  const dotnetBinary = process.env.DOTNET_BINARY_PATH || DOTNET_BINARY_NAME;
+  const dotnetCommandName = path.basename(dotnetBinary);
 
   const firejailArgs = [
     '--quiet',
@@ -127,7 +123,7 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
     '--seccomp',
     '--caps.drop=all',
     '--restrict-namespaces',
-    `--private-bin=${dotnetBinary}`,
+    `--private-bin=${dotnetCommandName}`,
     '--private-etc=localtime,passwd,group,nsswitch.conf',
     `--whitelist=${runDir}`,
     `--read-only=${runDir}`,
@@ -169,11 +165,78 @@ async function ensureAssemblyArtifacts(runDir) {
   throw new Error('Compiled assembly not found');
 }
 
-function getDotnetBinary(compilerPaths) {
-  if (compilerPaths.dotnetRoot) {
-    return path.join(compilerPaths.dotnetRoot, DOTNET_BINARY_NAME);
+async function ensureRuntimeConfig(runDir) {
+  const runtimeConfigPath = path.join(runDir, RUNTIME_CONFIG_FILENAME);
+  if (await pathExists(runtimeConfigPath)) {
+    return;
   }
-  return null;
+
+  throw new Error('Runtime config not found');
+}
+
+async function runCompilerWithTimeout(compilerPaths, dotnetBinary, sourcePath, runDir, env) {
+  const command = compilerPaths.selfContained ? compilerPaths.entryPoint : dotnetBinary;
+  const args = compilerPaths.selfContained
+    ? [sourcePath]
+    : [compilerPaths.entryPoint, sourcePath];
+
+  return runProcess(command, args, {
+    cwd: runDir,
+    env,
+    timeoutMs: COMPILER_TIMEOUT_SECONDS * 1000,
+    killAfterMs: COMPILER_KILL_AFTER_SECONDS * 1000
+  });
+}
+
+function buildCompilerEnv(runDir, compilerPaths) {
+  const pathEntries = [runDir];
+
+  if (compilerPaths.dotnetRoot) {
+    pathEntries.push(compilerPaths.dotnetRoot);
+  }
+
+  if (process.env.PATH) {
+    pathEntries.push(process.env.PATH);
+  }
+
+  const env = {
+    ...process.env,
+    PATH: pathEntries.join(path.delimiter)
+  };
+
+  if (compilerPaths.dotnetRoot) {
+    env.DOTNET_ROOT = compilerPaths.dotnetRoot;
+  }
+
+  return env;
+}
+
+function locateDotnetBinary(compilerPaths) {
+  if (process.env.DOTNET_BINARY_PATH) {
+    return process.env.DOTNET_BINARY_PATH;
+  }
+
+  const searchPaths = (process.env.PATH || '').split(path.delimiter);
+  for (const entry of searchPaths) {
+    if (!entry) {
+      continue;
+    }
+    const candidate = path.join(entry, DOTNET_BINARY_NAME);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  if (compilerPaths.dotnetRoot) {
+    const candidate = path.join(compilerPaths.dotnetRoot, DOTNET_BINARY_NAME);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Unable to locate "${DOTNET_BINARY_NAME}" on PATH. Install the .NET runtime or set DOTNET_BINARY_PATH.`
+  );
 }
 
 async function prepareRunDirectory(runDir) {
@@ -254,6 +317,9 @@ function runProcess(command, args, options = {}) {
 
     let stdout = '';
     let stderr = '';
+    let timedOut = false;
+    let timeoutTimer = null;
+    let killTimer = null;
 
     if (child.stdout) {
       child.stdout.on('data', (data) => {
@@ -267,11 +333,49 @@ function runProcess(command, args, options = {}) {
       });
     }
 
+    if (options.timeoutMs && options.timeoutMs > 0) {
+      timeoutTimer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGTERM');
+        killTimer = setTimeout(() => {
+          child.kill('SIGKILL');
+        }, options.killAfterMs || 2000);
+      }, options.timeoutMs);
+    }
+
     child.on('error', (error) => {
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+      }
+      if (killTimer) {
+        clearTimeout(killTimer);
+      }
       reject(new CommandError(command, args, null, null, stdout, stderr, error.message));
     });
 
     child.on('close', (code, signal) => {
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+      }
+      if (killTimer) {
+        clearTimeout(killTimer);
+      }
+
+      if (timedOut) {
+        const timeoutError = new CommandError(
+          command,
+          args,
+          null,
+          signal,
+          stdout,
+          stderr,
+          `Process timed out after ${options.timeoutMs}ms`
+        );
+        timeoutError.timedOut = true;
+        reject(timeoutError);
+        return;
+      }
+
       if (code === 0) {
         resolve({ stdout, stderr, code, signal });
       } else {

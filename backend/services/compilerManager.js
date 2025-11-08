@@ -12,8 +12,6 @@ const Z3_DOWNLOAD_URL =
 const DOTNET_RUNTIME_URL =
   process.env.DOTNET_RUNTIME_URL ||
   'https://dotnetcli.azureedge.net/dotnet/Runtime/9.0.0/dotnet-runtime-9.0.0-linux-x64.tar.gz';
-const OUTPUT_PATCH_MARKER = '// VerifexPad output forwarding patch';
-const EXECUTION_PATCH_MARKER = '// VerifexPad execution skip patch';
 const DEFAULT_RUNTIME_ID =
   process.env.VERIFEX_RUNTIME_ID || 'linux-x64';
 const EXECUTABLE_NAME =
@@ -22,7 +20,7 @@ const EXECUTABLE_NAME =
 const SHOULD_BUNDLE_DOTNET =
   process.env.VERIFEX_BUNDLE_DOTNET_RUNTIME !== 'false' &&
   process.platform === 'linux';
-const COMPILER_SCHEMA_VERSION = '4';
+const COMPILER_SCHEMA_VERSION = '6';
 const VERSION_FILENAME = '.verifexpad-version';
 const DOTNET_DIRNAME = 'dotnet';
 const DOTNET_BINARY_NAME = process.platform === 'win32' ? 'dotnet.exe' : 'dotnet';
@@ -108,7 +106,6 @@ async function bootstrapCompiler() {
 
   const repoDir = path.join(buildDir, 'Verifex');
   await run('git', ['clone', '--branch', VERIFEX_VERSION, '--depth', '1', COMPILER_REPO, repoDir]);
-  await patchUpstreamCompiler(repoDir);
 
   const csprojPath = path.join(repoDir, 'Verifex', 'Verifex.csproj');
   await run('dotnet', [
@@ -164,93 +161,6 @@ async function installDotnetRuntime() {
   await fsp.access(path.join(dotnetRoot, 'host', 'fxr'), fs.constants.R_OK);
 }
 
-async function patchUpstreamCompiler(repoDir) {
-  const programPath = path.join(repoDir, 'Verifex', 'Program.cs');
-  let contents = await fsp.readFile(programPath, 'utf8');
-  let updated = contents;
-  let patched = false;
-
-  const outputPatch = applyOutputForwardingPatch(updated);
-  updated = outputPatch.updated;
-  patched = patched || outputPatch.changed;
-
-  const executionPatch = applyExecutionSkipPatch(updated);
-  updated = executionPatch.updated;
-  patched = patched || executionPatch.changed;
-
-  if (patched) {
-    await fsp.writeFile(programPath, updated, 'utf8');
-  }
-
-  if (outputPatch.changed) {
-    console.log('[compiler] Applied Verifex output forwarding patch.');
-  }
-
-  if (executionPatch.changed) {
-    console.log('[compiler] Applied Verifex execution control patch.');
-  }
-}
-
-function applyOutputForwardingPatch(contents) {
-  if (contents.includes(OUTPUT_PATCH_MARKER)) {
-    return { updated: contents, changed: false };
-  }
-
-  const needle =
-    '    Console.WriteLine("----------------------------");';
-
-  if (!contents.includes(needle)) {
-    throw new Error('Unable to locate output patch insertion point');
-  }
-
-  const replacement = [
-    '    process.WaitForExit();',
-    '    process.CancelOutputRead();',
-    '    process.CancelErrorRead();',
-    `    ${OUTPUT_PATCH_MARKER}`,
-    '',
-    needle
-  ].join('\n');
-
-  const updated = contents.replace(needle, replacement);
-
-  if (updated === contents) {
-    throw new Error('Failed to apply output forwarding patch');
-  }
-
-  return { updated, changed: true };
-}
-
-function applyExecutionSkipPatch(contents) {
-  if (contents.includes(EXECUTION_PATCH_MARKER)) {
-    return { updated: contents, changed: false };
-  }
-
-  const runNeedle = 'Console.WriteLine("Running...");';
-
-  if (!contents.includes(runNeedle)) {
-    throw new Error('Unable to locate execution patch insertion point');
-  }
-
-  const replacement = [
-    'var skipExecutionEnv = Environment.GetEnvironmentVariable("VERIFEXPAD_SKIP_EXECUTION");',
-    'if (!string.IsNullOrEmpty(skipExecutionEnv) && skipExecutionEnv != "0")',
-    '{',
-    '    return;',
-    `    ${EXECUTION_PATCH_MARKER}`,
-    '}',
-    '',
-    runNeedle
-  ].join('\n');
-
-  const updated = contents.replace(runNeedle, replacement);
-
-  if (updated === contents) {
-    throw new Error('Failed to apply execution skip patch');
-  }
-
-  return { updated, changed: true };
-}
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
