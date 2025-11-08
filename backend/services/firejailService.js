@@ -2,6 +2,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const { spawn } = require('child_process');
+const os = require('os');
 const compilerManager = require('./compilerManager');
 
 const FIREJAIL_CMD = process.env.FIREJAIL_PATH || 'firejail';
@@ -62,13 +63,14 @@ class FirejailService {
     // Get session directory from program path
     const sessionDir = path.dirname(programPath);
     const sessionName = path.basename(sessionDir);
+    const username = os.userInfo().username;
 
     // Prepare an ephemeral per-session home inside the compiler dir
     // to avoid mutating persistent artifacts.
     const jailHomeOutside = await fsp.mkdtemp(
       path.join(compilerDir, 'jail-home-')
     );
-    const jailHomeBase = jailHomeOutside;
+    const jailHomeBase = `/home/${username}`;
 
     // Layout inside the jail home
     const jailSessionsOutside = path.join(jailHomeOutside, 'sessions', sessionName);
@@ -152,6 +154,7 @@ class FirejailService {
         .toString()
         .padStart(2, '0')}`,
       // Environment variables
+      `--chdir=${jailHomeBase}`,
       `--env=HOME=${jailHomeBase}`,
       `--env=LD_LIBRARY_PATH=${jailHomeBase}`,
       `--env=DOTNET_ROOT=${jailDotnetRoot}`,
