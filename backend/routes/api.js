@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const firejailService = require('../services/firejailService');
+const sandboxService = require('../services/firejailService');
 const fs = require('fs');
 const path = require('path');
-const FIREJAIL_DISABLED = process.env.FIREJAIL_DISABLED === 'true';
+const SANDBOX_DISABLED =
+  process.env.SANDBOX_DISABLED === 'true' || process.env.FIREJAIL_DISABLED === 'true';
 
 /**
  * Compile and run Verifex code
@@ -20,16 +21,16 @@ router.post('/compile', async (req, res) => {
 
   try {
     let result;
-    if (FIREJAIL_DISABLED) {
-      console.log('Firejail disabled, using simulation mode');
-      result = await firejailService.simulateCompileAndRun(code);
+    if (SANDBOX_DISABLED) {
+      console.log('Sandbox disabled, using simulation mode');
+      result = await sandboxService.simulateCompileAndRun(code);
     } else {
       try {
-        result = await firejailService.compileAndRun(code);
+        result = await sandboxService.compileAndRun(code);
       } catch (sandboxError) {
-        console.error('Firejail execution failed:', sandboxError);
+        console.error('Sandbox execution failed:', sandboxError);
         console.log('Falling back to simulation mode');
-        result = await firejailService.simulateCompileAndRun(code);
+        result = await sandboxService.simulateCompileAndRun(code);
       }
     }
 
