@@ -258,19 +258,19 @@ function spawnWithTimeout(command, args, timeoutMs) {
       reject(err);
     });
 
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
-      if (timedOut) {
-        reject({ type: 'timeout', stdout, stderr });
-      } else if (code === 0) {
-        resolve({ stdout, stderr });
-      } else {
-        const error = new Error(`Sandbox exited with code ${code}`);
-        error.stdout = stdout;
-        error.stderr = stderr;
-        reject(error);
-      }
+      if (timedOut) return reject({ type: 'timeout', stdout, stderr });
+
+      // Helpful diagnostics
+      const decoded = (code && code >= 128) ? code - 128 : null;
+      const note = signal ? ` signal=${signal}` :
+        (decoded !== null ? ` signalNo=${decoded}` : '');
+      if (code === 0) return resolve({ stdout, stderr });
+      const err = new Error(`Sandbox exited with code ${code}.${note}`);
+      err.stdout = stdout; err.stderr = stderr;
+      reject(err);
     });
   });
 }
