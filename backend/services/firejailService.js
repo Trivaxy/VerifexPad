@@ -111,7 +111,11 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
   await assertPathExists(assemblyPath);
   await assertPathExists(runtimeConfigPath);
 
-  const { dotnetBinary, sharedPaths } = await resolveDotnetRuntime(compilerPaths);
+  const homeDotnetRoot = path.join(os.homedir(), '.dotnet');
+  const { dotnetBinary, sharedPaths } = await resolveDotnetRuntime(
+    compilerPaths,
+    homeDotnetRoot
+  );
 
   const firejailArgs = [
     '--quiet',
@@ -124,7 +128,7 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
     '--caps.drop=all',
     '--restrict-namespaces',
     '--private-etc=localtime,passwd,group,nsswitch.conf',
-    ...expandReadonlyMounts([runDir, ...sharedPaths]),
+    ...expandReadonlyMounts([runDir, homeDotnetRoot, ...sharedPaths]),
     '--noexec=/bin',
     '--noexec=/usr/bin',
     '--noexec=/usr/local/bin',
@@ -149,22 +153,23 @@ async function runSandboxedAssembly(runDir, compilerPaths) {
   return formatOutput([stdout, stderr]);
 }
 
-async function resolveDotnetRuntime(compilerPaths) {
-  const candidateRoots = [];
-
-  if (compilerPaths.dotnetRoot) {
-    candidateRoots.push(compilerPaths.dotnetRoot);
+async function resolveDotnetRuntime(compilerPaths, homeDotnetRoot) {
+  const sharedPaths = [];
+  if (await pathExists(homeDotnetRoot)) {
+    sharedPaths.push(homeDotnetRoot);
+    const homeBinary = path.join(homeDotnetRoot, DOTNET_BINARY_NAME);
+    if (await pathExists(homeBinary)) {
+      return { dotnetBinary: homeBinary, sharedPaths };
+    }
   }
 
-  candidateRoots.push(path.join(os.homedir(), '.dotnet'));
-
-  for (const root of candidateRoots) {
-    const binaryPath = path.join(root, DOTNET_BINARY_NAME);
-    if (await pathExists(binaryPath)) {
-      return {
-        dotnetBinary: binaryPath,
-        sharedPaths: [root]
-      };
+  if (compilerPaths.dotnetRoot) {
+    const bundleBinary = path.join(compilerPaths.dotnetRoot, DOTNET_BINARY_NAME);
+    if (await pathExists(bundleBinary)) {
+      if (!sharedPaths.includes(compilerPaths.dotnetRoot)) {
+        sharedPaths.push(compilerPaths.dotnetRoot);
+      }
+      return { dotnetBinary: bundleBinary, sharedPaths };
     }
   }
 
