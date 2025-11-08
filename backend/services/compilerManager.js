@@ -14,13 +14,10 @@ const DOTNET_RUNTIME_URL =
   'https://dotnetcli.azureedge.net/dotnet/Runtime/9.0.0/dotnet-runtime-9.0.0-linux-x64.tar.gz';
 const DEFAULT_RUNTIME_ID =
   process.env.VERIFEX_RUNTIME_ID || 'linux-x64';
-const EXECUTABLE_NAME =
-  process.env.VERIFEX_BINARY_NAME ||
-  (DEFAULT_RUNTIME_ID.toLowerCase().startsWith('win') ? 'Verifex.exe' : 'Verifex');
 const SHOULD_BUNDLE_DOTNET =
   process.env.VERIFEX_BUNDLE_DOTNET_RUNTIME !== 'false' &&
   process.platform === 'linux';
-const COMPILER_SCHEMA_VERSION = '6';
+const COMPILER_SCHEMA_VERSION = '7';
 const VERSION_FILENAME = '.verifexpad-version';
 const DOTNET_DIRNAME = 'dotnet';
 const DOTNET_BINARY_NAME = process.platform === 'win32' ? 'dotnet.exe' : 'dotnet';
@@ -31,13 +28,7 @@ const dotnetRelativeBinary = path.join(DOTNET_DIRNAME, DOTNET_BINARY_NAME);
 const dotnetFxrPath = path.join(DOTNET_DIRNAME, 'host', 'fxr');
 const dotnetRequiredPaths =
   SHOULD_BUNDLE_DOTNET ? [dotnetRelativeBinary, dotnetFxrPath] : [];
-const SINGLE_FILE_ARTIFACTS = [
-  EXECUTABLE_NAME,
-  'libz3.so',
-  ...dotnetRequiredPaths,
-  VERSION_FILENAME
-];
-const FRAMEWORK_DEPENDENT_ARTIFACTS = [
+const REQUIRED_ARTIFACTS = [
   'Verifex.dll',
   'Verifex.runtimeconfig.json',
   'libz3.so',
@@ -92,10 +83,7 @@ async function isCompilerReady() {
     return false;
   }
 
-  if (await artifactsExist(SINGLE_FILE_ARTIFACTS)) {
-    return true;
-  }
-  return artifactsExist(FRAMEWORK_DEPENDENT_ARTIFACTS);
+  return artifactsExist(REQUIRED_ARTIFACTS);
 }
 
 async function bootstrapCompiler() {
@@ -116,8 +104,7 @@ async function bootstrapCompiler() {
     '-r',
     DEFAULT_RUNTIME_ID,
     '--self-contained',
-    'true',
-    '-p:PublishSingleFile=true',
+    'false',
     '-o',
     compilerDir
   ]);
@@ -187,23 +174,16 @@ function run(command, args, options = {}) {
 }
 
 function getCompilerPaths() {
-  const singleBinaryPath = path.join(compilerDir, EXECUTABLE_NAME);
-  const dotnetRoot = SHOULD_BUNDLE_DOTNET
-    ? path.join(compilerDir, DOTNET_DIRNAME)
-    : null;
-
-  if (fs.existsSync(singleBinaryPath)) {
-    return {
-      compilerDir,
-      entryPoint: singleBinaryPath,
-      selfContained: true,
-      dotnetRoot
-    };
+  const entryPoint = path.join(compilerDir, 'Verifex.dll');
+  if (!fs.existsSync(entryPoint)) {
+    throw new Error('Compiler artifacts missing. Re-run bootstrap to reinstall.');
   }
+
+  const dotnetRoot = SHOULD_BUNDLE_DOTNET ? path.join(compilerDir, DOTNET_DIRNAME) : null;
 
   return {
     compilerDir,
-    entryPoint: path.join(compilerDir, 'Verifex.dll'),
+    entryPoint,
     selfContained: false,
     dotnetRoot
   };
