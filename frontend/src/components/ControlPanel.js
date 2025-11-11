@@ -73,6 +73,16 @@ const ThemeButton = styled(Button)`
   }
 `;
 
+const GithubButton = styled(Button)`
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+
+  &:hover {
+    background-color: ${props => props.theme.colors.primaryHover};
+  }
+`;
+
 const Select = styled.select`
   background-color: ${props => props.theme.name === 'dark' ? '#3c3c3c' : '#f0f0f0'};
   color: ${props => props.theme.colors.text};
@@ -96,6 +106,15 @@ const ControlPanel = ({ onRun, onSelectExample, isRunning, showReference, onTogg
     <Container theme={theme}>
       <Title theme={theme}>VerifexPad</Title>
       <Controls>
+        <GithubButton
+          as="a"
+          href="https://github.com/Trivaxy/Verifex"
+          target="_blank"
+          rel="noopener noreferrer"
+          theme={theme}
+        >
+          GitHub
+        </GithubButton>
         <ThemeButton onClick={toggleTheme} theme={theme}>
           {theme.name === 'dark' 
             ? (
