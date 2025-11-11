@@ -30,9 +30,10 @@ async function compileAndRun(code) {
   await fsp.writeFile(sourcePath, code, 'utf8');
 
   const deadline = Date.now() + SANDBOX_TIMEOUT_MS;
+  let compileResult = null;
 
   try {
-    await runInsidePodman(jobDir, ['dotnet', '/compiler/Verifex.dll', '/sandbox/Program.vx'], remaining(deadline));
+    compileResult = await runInsidePodman(jobDir, ['dotnet', '/compiler/Verifex.dll', '/sandbox/Program.vx'], remaining(deadline));
     await ensureAssemblyArtifacts(jobDir);
     await ensureRuntimeConfig(jobDir);
     const runResult = await runInsidePodman(jobDir, ['dotnet', '/sandbox/Program.dll'], remaining(deadline));
@@ -43,6 +44,14 @@ async function compileAndRun(code) {
       error: ''
     };
   } catch (error) {
+    if (error.message === 'Compiled assembly not found' && compileResult) {
+      const compileStdout = (compileResult.stdout || '').trim();
+      const compileStderr = (compileResult.stderr || '').trim();
+      const compilerOutput = [compileStderr, compileStdout].filter(Boolean).join('\n').trim();
+      if (compilerOutput) {
+        error.stderr = compilerOutput;
+      }
+    }
     return {
       success: false,
       output: (error.stdout || '').trim(),
