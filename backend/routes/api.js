@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const sandboxService = require('../services/firejailService');
+const sandboxService = require('../services/podmanService');
 const fs = require('fs');
 const path = require('path');
-const SANDBOX_DISABLED =
-  process.env.SANDBOX_DISABLED === 'true' || process.env.FIREJAIL_DISABLED === 'true';
+const SANDBOX_DISABLED = process.env.SANDBOX_DISABLED === 'true';
 
 /**
  * Compile and run Verifex code
