@@ -1,15 +1,15 @@
 # VerifexPad Deployment Guide
 
-This guide walks through a minimal production setup: the backend hosts the API, bootstraps the Verifex compiler automatically, and executes programs through Firejail. The frontend is served as static assets (any CDN or reverse proxy works).
+This guide walks through a minimal production setup: the backend hosts the API, bootstraps the Verifex compiler automatically, and executes programs through Podman. The frontend is served as static assets (any CDN or reverse proxy works).
 
 ## Prerequisites
 
 - Node.js 18+
 - .NET 9.0 SDK
-- Firejail (ensure the backend user can invoke it)
+- Podman (rootless mode works great; ensure the backend user can invoke it)
 - Git, `wget`, and `unzip`
 
-> The backend clones and builds the compiler during startup. Firejail plus the .NET SDK must therefore be available on the same host.
+> The backend clones and builds the compiler during startup. Podman plus the .NET SDK must therefore be available on the same host.
 
 ## 1. Fetch the sources
 
@@ -39,10 +39,13 @@ All later restarts reuse the cached `compiler/` directory. Delete it if you need
 - `VERIFEX_VERSION` – Branch/tag to clone (default `master`).
 - `VERIFEX_COMPILER_REPO` – Source repository (default official Verifex).
 - `Z3_DOWNLOAD_URL` – Zip containing the Z3 native library (default 4.12.2 glibc 2.31 build).
-- `SANDBOX_TIMEOUT_MS` – Kill Firejail after this many ms (default `10000`).
-- `FIREJAIL_PATH` – Override path to the binary (default `firejail`).
-- `FIREJAIL_EXTRA_ARGS` – Extra hardening flags appended to the firejail invocation.
-- `FIREJAIL_DISABLED` – Set to `true` to use the simulator instead of the real compiler (for trusted local development only).
+- `SANDBOX_TIMEOUT_MS` – Total wall-clock budget for compile + run (default `10000` ms).
+- `PODMAN_PATH` – Path to the Podman binary (default `podman`).
+- `PODMAN_IMAGE` – Container image to use (default `mcr.microsoft.com/dotnet/runtime:9.0`).
+- `PODMAN_EXTRA_ARGS` – Extra flags appended right before the image name.
+- `PODMAN_MEMORY_LIMIT` – Passed to `--memory` (default `512m`).
+- `PODMAN_PIDS_LIMIT` – Passed to `--pids-limit` (default `64`).
+- `SANDBOX_DISABLED` – Set to `true` to use the simulator instead of the real compiler (for trusted local development only).
 
 ### Running the backend
 
@@ -52,7 +55,7 @@ NODE_ENV=production node index.js
 pm2 start index.js --name verifexpad-backend
 ```
 
-`compiler/` sits in the repository root, so keep it writable by the backend user. Firejail must also be executable by that user (usually by keeping the user in the `firejail` group on Linux distros that enforce it).
+`compiler/` sits in the repository root, so keep it writable by the backend user. Podman must also be runnable by that user (rootless installs usually handle this automatically).
 
 ## 3. Publish the frontend
 
@@ -88,9 +91,9 @@ server {
 
 ## Troubleshooting
 
-- **Firejail missing** – Install it via your distro (`sudo apt install firejail`) and ensure the backend user can invoke it without sudo.
+- **Podman missing** – Install it via your distro (`sudo apt install podman`) and ensure the backend user can invoke it without sudo.
 - **Bootstrap failures** – The first boot logs every command with a `[compiler]` prefix. Missing `git`, `dotnet`, `wget`, or `unzip` will cause immediate failures; install them and restart.
 - **Need a clean rebuild** – Stop the backend, delete the `compiler/` directory, and start the server again.
-- **Sandbox tuning** – Use `FIREJAIL_EXTRA_ARGS="--private --private-tmp"` (or similar) to tighten the sandbox. Validate your flags with `firejail --build=...` before deploying them broadly.
+- **Sandbox tuning** – Use `PODMAN_EXTRA_ARGS="--cpus=1 --device-read-bps=/dev/null:1mb"` (or similar) to tighten the sandbox if you need extra isolation.
 
-Once these steps are complete you can serve the frontend from a CDN, proxy `/api` to the backend, and rely on Firejail for lightweight isolation of every Verifex compilation.
+Once these steps are complete you can serve the frontend from a CDN, proxy `/api` to the backend, and rely on Podman for lightweight isolation of every Verifex compilation.
