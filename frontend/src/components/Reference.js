@@ -105,6 +105,22 @@ const MarkdownContainer = styled.div`
     /* Remove border and other styling from pre since we're styling the inner element */
   }
 
+  pre,
+  pre code {
+    background-color: ${props => props.theme.colors.codeBackground} !important;
+  }
+
+  pre code {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+    color: inherit;
+    font-family: inherit;
+    line-height: inherit;
+  }
+
   /* This targets the SyntaxHighlighter component */
   .prism-code {
     font-family: 'JetBrains Mono', monospace !important;
