@@ -7,6 +7,10 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 const WEBHOOK_ENABLED = process.env.WEBHOOK_ENABLED !== 'false';
 const COMPILER_REPO =
   process.env.VERIFEX_COMPILER_REPO || 'https://github.com/Trivaxy/Verifex.git';
+// Normalize to API URL format for comparison (webhooks use api.github.com URLs)
+const COMPILER_REPO_API = COMPILER_REPO
+  .replace('https://github.com/', 'https://api.github.com/repos/')
+  .replace(/\.git$/, '');
 const VERIFEX_VERSION = process.env.VERIFEX_VERSION || 'master';
 const EXPECTED_BRANCH_REF = `refs/heads/${VERIFEX_VERSION}`;
 
@@ -49,9 +53,9 @@ router.post('/github', async (req, res) => {
     }
   }
 
-  // Validate repository
+  // Validate repository (webhook payload uses api.github.com URL format)
   const repoUrl = payload.repository?.url;
-  if (!repoUrl || repoUrl !== COMPILER_REPO) {
+  if (!repoUrl || repoUrl !== COMPILER_REPO_API) {
     console.log(`[webhook] Ignored push from unrelated repo: ${repoUrl || 'unknown'}`);
     return res.status(200).send('Ignored: not the configured repository');
   }
