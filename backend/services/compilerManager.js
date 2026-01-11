@@ -37,6 +37,7 @@ const REQUIRED_ARTIFACTS = [
 ];
 
 let ensurePromise = null;
+let rebuildPromise = null;
 
 async function ensureCompilerReady() {
   if (!ensurePromise) {
@@ -189,7 +190,23 @@ function getCompilerPaths() {
   };
 }
 
+async function rebuildCompiler() {
+  if (!rebuildPromise) {
+    rebuildPromise = internalRebuild().finally(() => {
+      rebuildPromise = null;
+    });
+  }
+  return rebuildPromise;
+}
+
+async function internalRebuild() {
+  console.log('[compiler] Rebuilding Verifex compiler due to webhook trigger...');
+  await bootstrapCompiler();
+  console.log('[compiler] Rebuild complete.');
+}
+
 module.exports = {
   ensureCompilerReady,
-  getCompilerPaths
+  getCompilerPaths,
+  rebuildCompiler
 };

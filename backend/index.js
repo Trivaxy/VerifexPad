@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const apiRoutes = require('./routes/api');
+const webhookRoutes = require('./routes/webhooks');
 const compilerManager = require('./services/compilerManager');
 
 const app = express();
@@ -20,6 +21,7 @@ app.use(bodyParser.json());
 
 // Routes
 app.use('/api', apiRoutes);
+app.use('/api/webhook', webhookRoutes);
 
 // Default route
 app.get('/', (req, res) => {
