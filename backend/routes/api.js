@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const sandboxService = require('../services/podmanService');
+const database = require('../services/database');
 const fs = require('fs');
 const path = require('path');
 const SANDBOX_DISABLED = process.env.SANDBOX_DISABLED === 'true';
+
+const MAX_SNIPPET_SIZE = 10240; // 10KB
+const MAX_SNIPPET_CHARS = 10000;
 
 /**
  * Compile and run Verifex code
@@ -16,6 +20,10 @@ router.post('/compile', async (req, res) => {
 
   if (!code) {
     return res.status(400).json({ success: false, error: 'No code provided' });
+  }
+
+  if (code.length > MAX_SNIPPET_CHARS || Buffer.byteLength(code, 'utf8') > MAX_SNIPPET_SIZE) {
+    return res.status(400).json({ success: false, error: 'Code snippet exceeds maximum size of 10KB' });
   }
 
   try {
@@ -33,9 +41,15 @@ router.post('/compile', async (req, res) => {
       }
     }
 
+    // Log successful compilation
+    database.logCompilation(code, result.output || '', result.success);
+
     res.json(result);
   } catch (error) {
     console.error('Error during compilation:', error);
+
+    // Log failed compilation
+    database.logCompilation(code, error.toString(), false);
 
     res.status(500).json({
       success: false,
