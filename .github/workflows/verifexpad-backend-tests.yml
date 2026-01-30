@@ -3,25 +3,25 @@ name: VerifexPad Backend Tests
 on:
   push:
     paths:
-      - "VerifexPad/backend/**"
-      - "VerifexPad/.github/workflows/verifexpad-backend-tests.yml"
+      - "backend/**"
+      - ".github/workflows/verifexpad-backend-tests.yml"
   pull_request:
     paths:
-      - "VerifexPad/backend/**"
-      - "VerifexPad/.github/workflows/verifexpad-backend-tests.yml"
+      - "backend/**"
+      - ".github/workflows/verifexpad-backend-tests.yml"
 
 jobs:
   test-backend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: VerifexPad/backend
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: VerifexPad/backend/package-lock.json
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npm test
