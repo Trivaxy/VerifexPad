@@ -9,7 +9,7 @@ const examples = [
     name: "Variable Declaration",
     code: `fn main() {
   // Immutable variables
-  let name: String = "Omar";
+  let name: String = "John";
   let male = true;
   
   // Mutable variables
@@ -49,15 +49,15 @@ fn divide(a: Real, b: NonZeroReal) -> Real {
 fn main() {
   let numFromUser: Real = 5.0;
   
-  // This would cause a compile error
-  // divide(4, 0);
+  // ! Try uncommenting this line !
+  // divide(4.0, 0.0);
   
   // But this is safe
-  if (numFromUser == 0) {
+  if (numFromUser == 0.0) {
     print("Cannot divide by zero!");
   } else {
     // Within this block, numFromUser is known to be non-zero
-    let result = divide(4, numFromUser);
+    let result = divide(4.0, numFromUser);
     print("Result: " + result);
   }
 }`
