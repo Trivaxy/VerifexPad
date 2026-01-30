@@ -1,32 +1,15 @@
 require('dotenv').config();
 const fs = require('fs');
 const https = require('https');
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const apiRoutes = require('./routes/api');
-const webhookRoutes = require('./routes/webhooks');
 const compilerManager = require('./services/compilerManager');
-
-const app = express();
+const { createApp } = require('./app');
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = process.env.PORT || 3001;
 const TLS_PORT = process.env.TLS_PORT || 443;
 const TLS_CERT_PATH = process.env.TLS_CERT_PATH;
 const TLS_KEY_PATH = process.env.TLS_KEY_PATH;
 
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
-
-// Routes
-app.use('/api', apiRoutes);
-app.use('/api/webhook', webhookRoutes);
-
-// Default route
-app.get('/', (req, res) => {
-  res.json({ message: 'VerifexPad API Server' });
-});
+const app = createApp();
 
 const startHttpServer = () => {
   app.listen(PORT, HOST, () => {
@@ -65,3 +48,5 @@ async function startServer() {
 }
 
 startServer();
+
+module.exports = { createApp };
